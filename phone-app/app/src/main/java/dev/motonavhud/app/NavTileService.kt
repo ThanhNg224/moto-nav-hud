@@ -30,7 +30,7 @@ class NavTileService : TileService() {
     override fun onClick() {
         super.onClick()
         if (NavBus.serviceRunning) {
-            NavForegroundService.stop(this)
+            NavForegroundService.stopByUser(this)
             syncTile()
             return
         }
@@ -38,7 +38,7 @@ class NavTileService : TileService() {
             openApp()
             return
         }
-        val ok = runCatching { NavForegroundService.start(this) }.isSuccess
+        val ok = runCatching { NavForegroundService.startByUser(this) }.isSuccess
         if (!ok) openApp()
         syncTile()
     }
@@ -65,11 +65,11 @@ class NavTileService : TileService() {
         val tile = qsTile ?: return
         val running = NavBus.serviceRunning
         tile.state = if (running) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        tile.label = "Moto Nav HUD"
+        tile.label = "MotoNav"
         tile.subtitle = when {
-            !running -> "Đã tắt"
-            NavBus.subscribers > 0 -> "${NavBus.subscribers} đồng hồ"
-            else -> "Đang phát BLE"
+            !running -> if (Prefs.isAutoStart(this)) "Tự bật theo Maps" else "Chạm để bật"
+            NavBus.subscribers > 0 -> "${NavBus.subscribers} đồng hồ nối"
+            else -> "Chờ Watch S5"
         }
         tile.updateTile()
     }

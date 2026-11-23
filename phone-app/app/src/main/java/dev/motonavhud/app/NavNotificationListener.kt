@@ -1,11 +1,15 @@
 package dev.motonavhud.app
 
+import android.Manifest
 import android.app.Notification
+import android.bluetooth.BluetoothManager
 import android.content.ComponentName
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -39,6 +43,7 @@ class NavNotificationListener : NotificationListenerService() {
             selectedVersion = -1
         }
         NavBus.publishMaps(NavState.IDLE)
+        NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
         NavBus.changed()
         requestRebind(ComponentName(this, NavNotificationListener::class.java))
     }
@@ -64,6 +69,7 @@ class NavNotificationListener : NotificationListenerService() {
                 selectedVersion = -1
                 NavLog.i("listener source cleared (not ongoing)")
                 NavBus.publishMaps(NavState.IDLE)
+                NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
             }
             return
         }
@@ -101,8 +107,33 @@ class NavNotificationListener : NotificationListenerService() {
             NavLog.i("listener selected key=${key.hashCode()}")
         }
         NavLog.v("parse k=${state.k} m=${state.m} d=${state.d} street.len=${state.s.length} seed=$seed")
+        val now = SystemClock.elapsedRealtime()
         val ageMs = if (seed) (System.currentTimeMillis() - sbn.postTime).coerceAtLeast(0) else 0L
-        selectedVersion = NavBus.publishMaps(state, SystemClock.elapsedRealtime() - ageMs)
+        selectedVersion = NavBus.publishMaps(state, now - ageMs)
+        if (state.k == NavState.K_NAVIGATING) {
+            NavBus.autoStartGate.onMapsActive(now)
+            if (!seed || ageMs < 10_000L) tryAutoStart()
+        } else if (state.k == NavState.K_IDLE) {
+            NavBus.autoStartGate.onMapsIdle(now)
+        }
+    }
+
+    private fun tryAutoStart() {
+        val btPermOk = Build.VERSION.SDK_INT < 31 || (
+            checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+            )
+        val btOn = getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == true
+        if (!NavBus.autoStartGate.tryAcquireAutoStart(Prefs.isAutoStart(this), NavBus.serviceRunning, btPermOk && btOn)) return
+        try {
+            NavForegroundService.start(this)
+            NavLog.i("auto-start triggered")
+        } catch (e: Exception) {
+            NavBus.autoStartGate.onAutoStartBlocked()
+            NavLog.i("auto-start blocked: ${e.javaClass.simpleName}")
+            NavBus.warning = "Android chặn tự bật nền — bấm Bắt đầu hoặc dùng ô Quick Settings"
+            NavBus.changed()
+        }
     }
 
     @Synchronized
@@ -112,6 +143,7 @@ class NavNotificationListener : NotificationListenerService() {
         selectedVersion = -1
         NavLog.i("listener source removed")
         NavBus.publishMaps(NavState.IDLE)
+        NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
     }
 
     /** Chuyển largeIcon của Google Maps thành lưới nhị phân 16x16 để phân loại hướng dự phòng. */
@@ -159,6 +191,7 @@ class NavNotificationListener : NotificationListenerService() {
                 selectedVersion = -1
                 NavLog.i("listener source gone on verify")
                 NavBus.publishMaps(NavState.IDLE)
+                NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
             }
         }
     }

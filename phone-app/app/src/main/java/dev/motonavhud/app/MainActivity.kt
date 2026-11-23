@@ -18,6 +18,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
@@ -33,6 +34,9 @@ class MainActivity : Activity() {
     private lateinit var navDist: TextView
     private lateinit var navTitle: TextView
     private lateinit var navMeta: TextView
+    private lateinit var setupCard: LinearLayout
+    private lateinit var setupText: TextView
+    private lateinit var setupBtn: Button
     private lateinit var watchValue: TextView
     private lateinit var watchSub: TextView
     private lateinit var mapsValue: TextView
@@ -43,12 +47,12 @@ class MainActivity : Activity() {
     private lateinit var demo: Button
     private lateinit var advBtn: Button
     private lateinit var advCard: LinearLayout
+    private lateinit var autoStart: Switch
     private lateinit var capture: Switch
     private lateinit var clearCaptures: Button
     private lateinit var token: EditText
     private val autoStopChips = LinkedHashMap<Int, Button>()
     private var advOpen = false
-    private var advToggledManually = false
     private var dark = false
     private var captureCount = -1
     private var pendingAfterPermission: (() -> Unit)? = null
@@ -65,6 +69,7 @@ class MainActivity : Activity() {
         val border = if (dark) Color.parseColor("#243042") else Color.parseColor("#E2E8F0")
         val ink = if (dark) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A")
         val muted = if (dark) Color.parseColor("#94A3B8") else Color.parseColor("#475569")
+        val dividerColor = if (dark) Color.parseColor("#243042") else Color.parseColor("#E2E8F0")
 
         val pad = dp(16)
         val root = LinearLayout(this).apply {
@@ -73,21 +78,27 @@ class MainActivity : Activity() {
             fitsSystemWindows = true
         }
 
-        // Header gọn gàng + badge sống
+        // Header: logo MotoNav + tiêu đề thân thiện + badge trạng thái
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(pad, dp(14), pad, dp(10))
         }
+        val logo = ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+        header.addView(logo, LinearLayout.LayoutParams(dp(38), dp(38)))
+        header.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(dp(12), 1) })
         val titleCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titleCol.addView(TextView(this).apply {
-            text = "Moto Nav HUD"
+            text = "MotoNav"
             textSize = 22f
             setTypeface(null, Typeface.BOLD)
             setTextColor(ink)
         })
         titleCol.addView(TextView(this).apply {
-            text = "v0.2 · Watch S5 Companion"
+            text = "Chỉ đường trên Watch S5 · v0.3"
             textSize = 12f
             setTextColor(muted)
         })
@@ -107,18 +118,18 @@ class MainActivity : Activity() {
             setPadding(pad, dp(4), pad, dp(16))
         }
 
-        // Thẻ mô phỏng mặt đồng hồ trực tiếp (Beeline / Wear OS style)
+        // Thẻ mô phỏng mặt đồng hồ trực tiếp
         val heroCard = card(cardBg, border).apply {
             val row = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
             }
             arrowPreview = ArrowPreviewView(this@MainActivity)
-            row.addView(arrowPreview, LinearLayout.LayoutParams(dp(84), dp(84)))
+            row.addView(arrowPreview, LinearLayout.LayoutParams(dp(86), dp(86)))
             row.addView(View(this@MainActivity).apply { layoutParams = LinearLayout.LayoutParams(dp(16), 1) })
             val textCol = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
             navDist = TextView(this@MainActivity).apply {
-                textSize = 30f
+                textSize = 29f
                 setTypeface(null, Typeface.BOLD)
                 setTextColor(ink)
             }
@@ -142,6 +153,30 @@ class MainActivity : Activity() {
         info.addView(heroCard)
         info.addView(space(12))
 
+        // Thẻ hướng dẫn cấp quyền 1 chạm (chỉ hiện khi thiếu quyền Bluetooth hoặc đọc thông báo)
+        setupCard = card(
+            if (dark) Color.parseColor("#2A1F08") else Color.parseColor("#FEF3C7"),
+            if (dark) Color.parseColor("#854D0E") else Color.parseColor("#F59E0B"),
+        ).apply {
+            visibility = View.GONE
+            setupText = TextView(this@MainActivity).apply {
+                textSize = 13.5f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(if (dark) Color.parseColor("#FDE68A") else Color.parseColor("#92400E"))
+            }
+            setupBtn = Button(this@MainActivity).apply {
+                isAllCaps = false
+                textSize = 13.5f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(Color.WHITE)
+                background = pill(Color.parseColor("#D97706"), 12)
+            }
+            addView(setupText)
+            addView(space(10))
+            addView(setupBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)))
+        }
+        info.addView(setupCard)
+
         // Cảnh báo (chỉ hiện khi có)
         warningCard = TextView(this).apply {
             textSize = 13f
@@ -153,7 +188,7 @@ class MainActivity : Activity() {
         }
         info.addView(warningCard)
 
-        // Lưới 2 cột telemetry: Đồng hồ BLE | Nguồn Google Maps
+        // Lưới 2 cột trạng thái: Đồng hồ S5 | Google Maps
         val grid = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val watchCard = card(cardBg, border).apply {
             addView(label("ĐỒNG HỒ S5", muted))
@@ -171,7 +206,7 @@ class MainActivity : Activity() {
             mapsSub = TextView(this@MainActivity).apply { textSize = 12f; setTextColor(muted); maxLines = 2 }
             addView(mapsValue)
             addView(space(2))
-            mapsCardSubHint(this)
+            addView(mapsSub)
         }
         grid.addView(watchCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         grid.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(dp(10), 1) })
@@ -179,8 +214,29 @@ class MainActivity : Activity() {
         info.addView(grid)
         info.addView(space(12))
 
-        // Thẻ Cài đặt & gỡ lỗi (mở/đóng từ thanh dưới hoặc tự mở nếu thiếu quyền)
+        // Thẻ Cài đặt
         advCard = card(cardBg, border).apply {
+            addView(label("TỰ ĐỘNG HÓA", muted))
+            addView(space(8))
+            autoStart = Switch(this@MainActivity).apply {
+                text = "Tự bật khi mở Google Maps"
+                textSize = 14.5f
+                setTextColor(ink)
+                isChecked = Prefs.isAutoStart(this@MainActivity)
+                setOnCheckedChangeListener { _, on ->
+                    Prefs.setAutoStart(this@MainActivity, on)
+                    NavTileService.requestRefresh(this@MainActivity)
+                    render()
+                }
+            }
+            addView(autoStart)
+            addView(TextView(this@MainActivity).apply {
+                text = "Tự kết nối đồng hồ ngay khi Google Maps bắt đầu dẫn đường."
+                textSize = 12f
+                setTextColor(muted)
+            })
+            addView(space(14))
+
             addView(label("TỰ DỪNG KHI CHỜ (TIẾT KIỆM PIN)", muted))
             addView(space(8))
             val chipRow = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
@@ -201,15 +257,55 @@ class MainActivity : Activity() {
                 chipRow.addView(chip, LinearLayout.LayoutParams(0, dp(38), 1f))
             }
             addView(chipRow)
+
+            addView(space(16))
+            addView(divider(dividerColor))
             addView(space(14))
+            addView(label("QUYỀN & CHẠY NỀN", muted))
+            addView(space(8))
+
+            val btnBg = if (dark) "#1F2937" else "#E2E8F0"
+            val perms = subtleButton("Cấp quyền Bluetooth & thông báo", ink, btnBg) {
+                requestPerms(all = true) { render() }
+            }
+            val access = subtleButton("Quyền đọc chỉ đường (Notification access)", ink, btnBg) {
+                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }
+            val battery = subtleButton("Cho phép chạy nền (tắt tối ưu pin)", ink, btnBg) {
+                runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+                    .onFailure { Toast.makeText(this@MainActivity, "Mở Cài đặt > Pin > MotoNav", Toast.LENGTH_SHORT).show() }
+            }
+            listOf(perms, access, battery).forEach {
+                addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+                addView(space(8))
+            }
+
+            addView(space(8))
+            addView(divider(dividerColor))
+            addView(space(14))
+            addView(label("NÂNG CAO & GỠ LỖI", muted))
+            addView(space(8))
 
             capture = Switch(this@MainActivity).apply {
-                text = "Capture notification Maps (S4)"
+                text = "Ghi mẫu thông báo Maps (gỡ lỗi)"
                 setTextColor(ink)
                 isChecked = Prefs.isCapture(this@MainActivity)
                 setOnCheckedChangeListener { _, on -> Prefs.setCapture(this@MainActivity, on) }
             }
             addView(capture)
+            addView(space(8))
+
+            clearCaptures = subtleButton("Xóa mẫu đã lưu", ink, btnBg) {
+                Thread {
+                    val n = NotificationCapture.clear(this@MainActivity)
+                    main.post {
+                        captureCount = 0
+                        Toast.makeText(this@MainActivity, "Đã xóa $n tệp mẫu", Toast.LENGTH_SHORT).show()
+                        render()
+                    }
+                }.start()
+            }
+            addView(clearCaptures, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
             addView(space(10))
 
             val tokenRow = LinearLayout(this@MainActivity).apply {
@@ -217,16 +313,15 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER_VERTICAL
             }
             token = EditText(this@MainActivity).apply {
-                hint = "Mã ghép p (1-8 ký tự)"
+                hint = "Mã ghép đồng hồ (1-8 ký tự)"
                 setText(Prefs.token(this@MainActivity))
                 setTextColor(ink)
                 setHintTextColor(muted)
                 setSingleLine()
             }
-            val btnBg = if (dark) "#1F2937" else "#E2E8F0"
             val saveToken = subtleButton("Lưu mã", ink, btnBg) {
                 val ok = Prefs.setToken(this@MainActivity, token.text.toString().trim())
-                Toast.makeText(this@MainActivity, if (ok) "Đã lưu mã ghép" else "Mã không hợp lệ", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, if (ok) "Đã lưu mã ghép" else "Mã không hợp lệ (1-8 chữ/số)", Toast.LENGTH_SHORT).show()
                 if (!ok) token.setText(Prefs.token(this@MainActivity))
             }
             tokenRow.addView(token, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -235,33 +330,7 @@ class MainActivity : Activity() {
             addView(tokenRow)
             addView(space(10))
 
-            val perms = subtleButton("Cấp quyền Bluetooth / thông báo", ink, btnBg) {
-                requestPerms(all = true) { render() }
-            }
-            val access = subtleButton("Mở cài đặt Notification access", ink, btnBg) {
-                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-            }
-            val battery = subtleButton("Mở cài đặt Pin (tắt tối ưu hóa pin)", ink, btnBg) {
-                runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-                    .onFailure { Toast.makeText(this@MainActivity, "Mở Cài đặt > Pin > Moto Nav HUD", Toast.LENGTH_SHORT).show() }
-            }
-            clearCaptures = subtleButton("Xóa các capture đã lưu", ink, btnBg) {
-                Thread {
-                    val n = NotificationCapture.clear(this@MainActivity)
-                    main.post {
-                        captureCount = 0
-                        Toast.makeText(this@MainActivity, "Đã xóa $n tệp capture", Toast.LENGTH_SHORT).show()
-                        render()
-                    }
-                }.start()
-            }
-            listOf(perms, access, battery, clearCaptures).forEach {
-                addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
-                addView(space(8))
-            }
-
-            addView(space(4))
-            addView(label("PAYLOAD GẦN NHẤT", muted))
+            addView(label("GÓI TIN GẦN NHẤT", muted))
             addView(space(4))
             payload = TextView(this@MainActivity).apply {
                 typeface = Typeface.MONOSPACE
@@ -273,7 +342,7 @@ class MainActivity : Activity() {
             addView(TextView(this@MainActivity).apply {
                 textSize = 11.5f
                 setTextColor(muted)
-                text = "Mẹo: thêm ô \"Moto Nav HUD\" vào Quick Settings để bật/tắt nhanh bằng 1 chạm trước khi chạy xe."
+                text = "Mẹo: thêm ô \"MotoNav\" vào thanh kéo nhanh (Quick Settings) để bật/tắt 1 chạm trước khi chạy xe."
             })
         }
         info.addView(advCard)
@@ -299,7 +368,6 @@ class MainActivity : Activity() {
             textSize = 14f
             setTypeface(null, Typeface.BOLD)
             setOnClickListener {
-                advToggledManually = true
                 advOpen = !advOpen
                 if (advOpen) refreshCaptureCount()
                 render()
@@ -322,10 +390,6 @@ class MainActivity : Activity() {
         root.addView(actions)
 
         setContentView(root)
-    }
-
-    private fun mapsCardSubHint(card: LinearLayout) {
-        card.addView(mapsSub)
     }
 
     override fun onResume() {
@@ -355,30 +419,67 @@ class MainActivity : Activity() {
     private fun render() {
         val access = NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
         val btOk = missingBluetoothPermissions().isEmpty()
-        if (!advToggledManually) advOpen = !access || !btOk
+        val autoOn = Prefs.isAutoStart(this)
 
         val running = NavBus.serviceRunning
-        serviceBadge.text = if (running) "ĐANG CHẠY" else "ĐÃ DỪNG"
-        serviceBadge.setTextColor(if (running) Color.parseColor("#064E3B") else Color.parseColor("#CBD5E1"))
-        serviceBadge.background = pill(if (running) Color.parseColor("#34D399") else Color.parseColor("#334155"), 99)
+        serviceBadge.text = when {
+            running -> "ĐANG CHẠY"
+            autoOn && access && btOk -> "TỰ BẬT"
+            else -> "ĐÃ DỪNG"
+        }
+        serviceBadge.setTextColor(
+            when {
+                running -> Color.parseColor("#064E3B")
+                autoOn && access && btOk -> Color.parseColor("#0C4A6E")
+                else -> Color.parseColor("#CBD5E1")
+            },
+        )
+        serviceBadge.background = pill(
+            when {
+                running -> Color.parseColor("#34D399")
+                autoOn && access && btOk -> Color.parseColor("#38BDF8")
+                else -> Color.parseColor("#334155")
+            },
+            99,
+        )
+
+        // Banner hướng dẫn cấp quyền nhanh nếu còn thiếu
+        if (!btOk || !access) {
+            setupCard.visibility = View.VISIBLE
+            if (!btOk) {
+                setupText.text = "Cần quyền Bluetooth để gửi chỉ đường sang Watch S5."
+                setupBtn.text = "Cấp quyền Bluetooth ngay"
+                setupBtn.setOnClickListener { requestPerms(all = true) { render() } }
+            } else {
+                setupText.text = "Cần quyền đọc thông báo để MotoNav lấy chỉ đường từ Google Maps."
+                setupBtn.text = "Bật quyền đọc thông báo"
+                setupBtn.setOnClickListener { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+            }
+        } else {
+            setupCard.visibility = View.GONE
+        }
 
         // Hero live preview
         val st = NavBus.currentState
         arrowPreview.update(st.k, st.m, st.d)
-        val prefix = if (NavBus.demo) "[DEMO] " else ""
+        val prefix = if (NavBus.demo) "[THỬ] " else ""
         when {
             !running -> {
-                navDist.text = "Sẵn sàng"
-                navDist.setTextColor(if (dark) Color.parseColor("#94A3B8") else Color.parseColor("#475569"))
-                navTitle.text = "Bấm Bắt đầu HUD để phát BLE"
-                navMeta.text = "Hoặc dùng ô Quick Settings trên thanh trạng thái"
+                navDist.text = if (autoOn && access && btOk) "Sẵn sàng" else "Đã dừng"
+                navDist.setTextColor(if (dark) Color.parseColor("#E2E8F0") else Color.parseColor("#0F172A"))
+                navTitle.text = if (autoOn && access && btOk) {
+                    "Chỉ cần mở Google Maps — MotoNav sẽ tự bật"
+                } else {
+                    "Bấm Bắt đầu để kết nối với Watch S5"
+                }
+                navMeta.text = "Hoặc chạm ô MotoNav trên thanh kéo nhanh"
             }
             st.k == NavState.K_IDLE -> {
                 navDist.text = "Chờ Maps"
                 navDist.setTextColor(if (dark) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
                 navTitle.text = "Mở Google Maps chế độ xe máy"
                 val idleSec = NavBus.idleRemainingSec
-                navMeta.text = if (idleSec > 0) "Tự dừng sau ${idleSec / 60}p ${idleSec % 60}s" else "Đang giữ kết nối BLE"
+                navMeta.text = if (idleSec > 0) "Tự dừng sau ${idleSec / 60}p ${idleSec % 60}s" else "Đang giữ kết nối với đồng hồ"
             }
             st.k == NavState.K_REROUTING -> {
                 navDist.text = "Tính lại"
@@ -390,7 +491,7 @@ class MainActivity : Activity() {
                 navDist.text = "Đã đến"
                 navDist.setTextColor(Color.parseColor("#34D399"))
                 navTitle.text = "${prefix}Hoàn thành chuyến đi"
-                navMeta.text = st.s.ifEmpty { "Bạn có thể dừng HUD" }
+                navMeta.text = st.s.ifEmpty { "Bạn có thể dừng MotoNav" }
             }
             else -> {
                 navDist.text = formatDist(st.d)
@@ -408,9 +509,9 @@ class MainActivity : Activity() {
             }
         }
 
-        // 2 thẻ telemetry
+        // 2 thẻ trạng thái
         val subs = NavBus.subscribers
-        watchValue.text = if (subs > 0) "$subs đã nối" else if (running) "Đang chờ" else "Chưa chạy"
+        watchValue.text = if (subs > 0) "Đã kết nối" else if (running) "Đang chờ nối" else "Chưa bật"
         watchValue.setTextColor(
             when {
                 subs > 0 -> Color.parseColor("#34D399")
@@ -418,11 +519,15 @@ class MainActivity : Activity() {
                 else -> Color.parseColor("#94A3B8")
             },
         )
-        watchSub.text = if (!btOk) "Thiếu quyền Bluetooth" else NavBus.bleStatus
+        watchSub.text = when {
+            !btOk -> "Thiếu quyền Bluetooth"
+            subs > 0 -> "$subs thiết bị đang nhận chỉ đường"
+            else -> NavBus.bleStatus
+        }
 
         mapsValue.text = when {
             !access -> "Chưa cấp quyền"
-            NavBus.demo -> "Đang Demo"
+            NavBus.demo -> "Đang chạy thử"
             st.k != NavState.K_IDLE -> "Đang dẫn đường"
             NavBus.listenerConnected -> "Sẵn sàng"
             else -> "Đang nối..."
@@ -436,20 +541,22 @@ class MainActivity : Activity() {
             },
         )
         mapsSub.text = when {
-            !access -> "Mở Cài đặt để cấp quyền"
-            NavBus.demo -> "Giả lập 4 s/bước"
-            else -> "Notification access đã bật"
+            !access -> "Cần bật quyền đọc thông báo"
+            NavBus.demo -> "Giả lập 4 giây/khúc cua"
+            autoOn -> "Tự bật khi bắt đầu đi"
+            else -> "Đã sẵn sàng đọc chỉ đường"
         }
 
         if (NavBus.warning.isNotEmpty()) {
-            warningCard.text = "CẢNH BÁO: ${NavBus.warning}"
+            warningCard.text = "Lưu ý: ${NavBus.warning}"
             warningCard.visibility = View.VISIBLE
         } else {
             warningCard.visibility = View.GONE
         }
 
-        // Settings panel + auto-stop chips
+        // Thẻ cài đặt
         advCard.visibility = if (advOpen) View.VISIBLE else View.GONE
+        if (autoStart.isChecked != autoOn) autoStart.isChecked = autoOn
         val selectedAutoStop = Prefs.autoStopMinutes(this)
         for ((min, chip) in autoStopChips) {
             val sel = min == selectedAutoStop
@@ -459,16 +566,16 @@ class MainActivity : Activity() {
             )
             chip.setTextColor(if (sel) Color.WHITE else if (dark) Color.parseColor("#CBD5E1") else Color.parseColor("#334155"))
         }
-        payload.text = NavBus.lastPayload.ifEmpty { "(chưa có payload)" }
-        clearCaptures.text = if (captureCount >= 0) "Xóa các capture đã lưu ($captureCount)" else "Xóa các capture đã lưu"
+        payload.text = NavBus.lastPayload.ifEmpty { "(chưa có dữ liệu)" }
+        clearCaptures.text = if (captureCount >= 0) "Xóa mẫu đã lưu ($captureCount)" else "Xóa mẫu đã lưu"
 
-        // Nút dưới cùng
+        // Thanh thao tác dưới cùng
         if (NavBus.demo) {
-            demo.text = "Dừng Demo"
+            demo.text = "Dừng thử"
             demo.setTextColor(Color.parseColor("#FEF3C7"))
             demo.background = pill(Color.parseColor("#B45309"), 14)
         } else {
-            demo.text = "Demo (4 s)"
+            demo.text = "Chạy thử (4 s)"
             demo.setTextColor(if (dark) Color.parseColor("#E2E8F0") else Color.parseColor("#0F172A"))
             demo.background = pill(if (dark) Color.parseColor("#1E293B") else Color.parseColor("#E2E8F0"), 14)
         }
@@ -477,10 +584,10 @@ class MainActivity : Activity() {
         advBtn.background = pill(if (dark) Color.parseColor("#1E293B") else Color.parseColor("#E2E8F0"), 14)
 
         if (running) {
-            startStop.text = "Dừng HUD"
+            startStop.text = "Dừng"
             startStop.background = pill(Color.parseColor("#DC2626"), 16)
         } else {
-            startStop.text = "Bắt đầu HUD"
+            startStop.text = "Bắt đầu"
             startStop.background = pill(Color.parseColor("#059669"), 16)
         }
     }
@@ -492,8 +599,8 @@ class MainActivity : Activity() {
     }
 
     private fun maneuverLabel(m: Int) = when (m) {
-        1 -> "Đi thẳng"; 2 -> "Chếch trái"; 3 -> "Rẽ trái"; 4 -> "Gắt trái"
-        5 -> "Chếch phải"; 6 -> "Rẽ phải"; 7 -> "Gắt phải"; 8 -> "Quay đầu"
+        1 -> "Đi thẳng"; 2 -> "Chếch trái"; 3 -> "Rẽ trái"; 4 -> "Ngoặt trái"
+        5 -> "Chếch phải"; 6 -> "Rẽ phải"; 7 -> "Ngoặt phải"; 8 -> "Quay đầu"
         9 -> "Vòng xuyến"; 10 -> "Giữ trái"; 11 -> "Giữ phải"; 12 -> "Đích"; 13 -> "Xuất phát"
         else -> "Dẫn đường"
     }
@@ -516,6 +623,11 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun divider(color: Int) = View(this).apply {
+        setBackgroundColor(color)
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
+    }
+
     private fun subtleButton(label: String, textColor: Int, bgHex: String, onClick: () -> Unit) = Button(this).apply {
         text = label
         isAllCaps = false
@@ -532,9 +644,9 @@ class MainActivity : Activity() {
 
     private fun toggleService() {
         if (NavBus.serviceRunning) {
-            NavForegroundService.stop(this)
+            NavForegroundService.stopByUser(this)
         } else {
-            requestPerms { NavForegroundService.start(this) }
+            requestPerms { NavForegroundService.startByUser(this) }
         }
     }
 
@@ -546,7 +658,7 @@ class MainActivity : Activity() {
             return
         }
         requestPerms {
-            if (!NavBus.serviceRunning) NavForegroundService.start(this)
+            if (!NavBus.serviceRunning) NavForegroundService.startByUser(this)
             NavBus.demo = true
             NavLog.i("demo on")
             render()

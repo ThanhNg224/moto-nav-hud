@@ -1,11 +1,13 @@
 package dev.motonavhud.app
 
 import android.os.SystemClock
+import dev.motonavhud.core.AutoStartGate
 import dev.motonavhud.core.NavState
 import java.util.concurrent.CopyOnWriteArraySet
 
 /** Trạng thái dùng chung trong process: nguồn (listener/demo) -> service -> UI. */
 object NavBus {
+    val autoStartGate = AutoStartGate()
     @Volatile var mapsState: NavState = NavState.IDLE; private set
     @Volatile var mapsStateAt: Long = 0L; private set
     @Volatile var mapsVersion: Int = 0; private set

@@ -21,17 +21,20 @@
       <text class="bottom">{{bottomText}}</text>
     </div>
 
+    <!-- Biểu tượng MotoNav 68x68 ở màn chờ -->
+    <image class="emblem" src="/common/emblem.png" if="{{showWaitActions}}"></image>
+
     <!-- Màn chờ / Tính lại / Đã đến / Mất dữ liệu -->
     <text class="banner {{bannerClass}}" if="{{banner}}">{{banner}}</text>
     <text class="hint {{hintClass}}" if="{{hint}}">{{hint}}</text>
 
-    <!-- Nút nhanh ở màn chờ (tránh chạm nhầm Demo khi đang chạy xe) -->
+    <!-- Nút nhanh ở màn chờ (chữ thuần Việt rõ nét, không dùng ký tự đặc biệt dễ vỡ font) -->
     <div class="wait-actions" if="{{showWaitActions}}">
       <div class="wbtn wbtn-demo" onclick="onTapDemo">
-        <text class="wbtn-txt">▶ Demo</text>
+        <text class="wbtn-txt">Chạy thử</text>
       </div>
       <div class="wbtn wbtn-cfg" onclick="onOpenMenu">
-        <text class="wbtn-txt">⚙ Cài đặt</text>
+        <text class="wbtn-txt">Cài đặt</text>
       </div>
     </div>
 
@@ -45,12 +48,12 @@
 
     <!-- Bảng Cài đặt nhanh (vuốt lên hoặc bấm Cài đặt) -->
     <div class="menu" if="{{menuOpen}}">
-      <text class="menu-title">Cài đặt HUD</text>
+      <text class="menu-title">MotoNav</text>
       <div class="mbtn mbtn-accent" onclick="onCyclePreset">
         <text class="mbtn-txt">Rung: {{presetLabel}}</text>
       </div>
-      <div class="mbtn" onclick="onToggleNight">
-        <text class="mbtn-txt">{{nightLabel}}</text>
+      <div class="mbtn" onclick="onCycleBright">
+        <text class="mbtn-txt">{{brightLabel}}</text>
       </div>
       <div class="mbtn" onclick="onToggleDemoFromMenu">
         <text class="mbtn-txt">{{demoBtnLabel}}</text>
@@ -195,14 +198,24 @@
   text-overflow: ellipsis;
 }
 
+/* Biểu tượng MotoNav 68x68 (1:1) ở đỉnh màn chờ */
+.emblem {
+  position: absolute;
+  left: 206px;
+  top: 50px;
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+}
+
 /* Màn trạng thái (chờ / tính lại / đến / mất dữ liệu): góc trên r = 210.3px < 223px */
 .banner {
   position: absolute;
   left: 62px;
-  top: 128px;
+  top: 130px;
   width: 356px;
-  height: 68px;
-  font-size: 42px;
+  height: 64px;
+  font-size: 40px;
   font-weight: bold;
   color: #ffd000;
   text-align: center;
@@ -215,7 +228,7 @@
 .hint {
   position: absolute;
   left: 64px;
-  top: 204px;
+  top: 202px;
   width: 352px;
   height: 42px;
   font-size: 22px;
@@ -269,9 +282,9 @@
 .st1 { top: 358px; }
 .st-row {
   position: absolute;
-  left: 115px;
+  left: 110px;
   top: 388px;
-  width: 250px;
+  width: 260px;
   height: 38px;
   flex-direction: row;
   justify-content: center;
@@ -335,7 +348,7 @@
   margin-bottom: 14px;
 }
 .mbtn {
-  width: 312px;
+  width: 316px;
   height: 56px;
   border-radius: 28px;
   background-color: #1e293b;
@@ -352,9 +365,9 @@
   margin-bottom: 0px;
 }
 .mbtn-txt {
-  width: 296px;
+  width: 300px;
   height: 32px;
-  font-size: 22px;
+  font-size: 21px;
   font-weight: bold;
   color: #f8fafc;
   text-align: center;
@@ -375,10 +388,16 @@ const shortSt = require('../../common/status.js')
 const L = require('../../common/log.js')
 
 const KEY_PRESET = 'haptic_preset'
-const KEY_NIGHT = 'night_mode'
+const KEY_BRIGHT = 'bright_mode'
+const BRIGHT_ORDER = ['auto', 'day', 'night']
+const BRIGHT_LABELS = {
+  auto: 'Độ sáng: Tự động',
+  day: 'Độ sáng: Ban ngày',
+  night: 'Độ sáng: Ban đêm'
+}
 
 let live = hud.createState()   // trạng thái tin thật
-let demo = null                // trạng thái demo cục bộ (tách khỏi live); null = không chạy demo
+let demo = null                // trạng thái chạy thử cục bộ (tách khỏi live); null = không chạy
 let transports = []
 let renderTimer = null
 let demoTimer = null
@@ -395,13 +414,18 @@ let tickTimer = null
 let buzz = null
 let lastMode = ''
 let presetKey = 'std'
-let nightMode = false
+let brightMode = 'auto'        // 'auto' (giữ nguyên hệ thống) | 'day' (230) | 'night' (80)
+let origMode = -1              // 0 thủ công | 1 tự động | -1 chưa đọc được
 let origBrightness = -1
+let baselineModeDone = false
+let baselineValDone = false
+let baselineDone = false
+let overrideApplied = false
 let showClock = false
 let pageGen = 0
 let visible = false
 let userTouchedPreset = false
-let userTouchedNight = false
+let userTouchedBright = false
 
 function pad2(n) { return n < 10 ? '0' + n : String(n) }
 function clockStr() {
@@ -420,7 +444,7 @@ export default {
     distClass: '',
     banner: 'Chờ chỉ đường',
     bannerClass: 'banner-wait',
-    hint: 'Mở Google Maps trên điện thoại',
+    hint: 'Mở Google Maps trên ĐT',
     hintClass: '',
     showWaitActions: true,
     street: '',
@@ -432,25 +456,24 @@ export default {
     status3: '',
     menuOpen: false,
     presetLabel: 'Chuẩn (200/50m)',
-    nightLabel: 'Màn hình: Sáng',
-    demoBtnLabel: 'Chạy Demo'
+    brightLabel: 'Độ sáng: Tự động',
+    demoBtnLabel: 'Chạy thử'
   },
 
   onShow() {
     const my = ++pageGen
     visible = true
+    origMode = -1
     origBrightness = -1
+    baselineModeDone = false
+    baselineValDone = false
+    baselineDone = false
+    overrideApplied = false
     userTouchedPreset = false
-    userTouchedNight = false
+    userTouchedBright = false
     this.loadPrefs(my)
+    this.captureBrightnessBaseline(my)
     try {
-      brightness.getValue({
-        success: (d) => {
-          if (!visible || my !== pageGen) return
-          if (d && typeof d.value === 'number') origBrightness = d.value
-          this.applyBrightness()
-        }
-      })
       brightness.setKeepScreenOn({
         keepScreenOn: true,
         fail: (data, code) => { if (visible && my === pageGen) { extra = 'sáng lỗi ' + code; this.refreshStatus() } }
@@ -460,6 +483,36 @@ export default {
   },
   onHide() { visible = false; pageGen++; this.stopAll(true) },
   onDestroy() { visible = false; pageGen++; this.stopAll(true) },
+
+  captureBrightnessBaseline(my) {
+    const finish = () => {
+      if (!visible || my !== pageGen || baselineDone) return
+      if (baselineModeDone && baselineValDone) {
+        baselineDone = true
+        if (brightMode !== 'auto') this.applyBrightness()
+      }
+    }
+    try {
+      if (typeof brightness.getMode === 'function') {
+        brightness.getMode({
+          success: (d) => {
+            if (visible && my === pageGen && d && typeof d.mode === 'number') origMode = d.mode
+          },
+          complete: () => { if (my !== pageGen) return; baselineModeDone = true; finish() }
+        })
+      } else {
+        baselineModeDone = true
+      }
+    } catch (e) { baselineModeDone = true }
+    try {
+      brightness.getValue({
+        success: (d) => {
+          if (visible && my === pageGen && d && typeof d.value === 'number') origBrightness = d.value
+        },
+        complete: () => { if (my !== pageGen) return; baselineValDone = true; finish() }
+      })
+    } catch (e) { baselineValDone = true; finish() }
+  },
 
   loadPrefs(my) {
     try {
@@ -474,12 +527,12 @@ export default {
         }
       })
       storage.get({
-        key: KEY_NIGHT,
-        default: '0',
+        key: KEY_BRIGHT,
+        default: 'auto',
         success: (v) => {
-          if (!visible || my !== pageGen || userTouchedNight) return
-          nightMode = v === '1'
-          if (origBrightness >= 0) this.applyBrightness()
+          if (!visible || my !== pageGen || userTouchedBright) return
+          brightMode = BRIGHT_ORDER.indexOf(v) >= 0 ? v : 'auto'
+          if (baselineDone) this.applyBrightness()
           this.syncMenuLabels()
         }
       })
@@ -487,20 +540,31 @@ export default {
   },
 
   applyBrightness() {
-    if (!visible || origBrightness < 0) return
+    if (!visible || !baselineDone) return
+    if (brightMode === 'auto') {
+      // Ở chế độ Tự động: không ghi đè; chỉ khôi phục lại chính sách gốc nếu trước đó đã ghi đè.
+      if (overrideApplied) this.restoreBrightnessPolicyOnly()
+      return
+    }
+    // Chỉ ghi đè khi đã đọc được giá trị hoặc chế độ gốc đủ để khôi phục an toàn lúc rời app
+    if (origBrightness < 0 && origMode !== 1) return
+    overrideApplied = true
+    try { if (origMode >= 0 && typeof brightness.setMode === 'function') brightness.setMode({ mode: 0 }) } catch (e) {}
+    try { brightness.setValue({ value: brightMode === 'night' ? 80 : 230 }) } catch (e) {}
+  },
+
+  restoreBrightnessPolicyOnly() {
+    if (!overrideApplied) return
+    overrideApplied = false
     try {
-      brightness.setValue({ value: nightMode ? 80 : 230 })
+      if (origMode >= 0 && typeof brightness.setMode === 'function') brightness.setMode({ mode: origMode })
+      if (origMode !== 1 && origBrightness >= 0) brightness.setValue({ value: origBrightness })
     } catch (e) {}
   },
 
   restoreBrightness() {
-    try {
-      if (origBrightness >= 0) {
-        brightness.setValue({ value: origBrightness })
-        origBrightness = -1
-      }
-      brightness.setKeepScreenOn({ keepScreenOn: false })
-    } catch (e) {}
+    this.restoreBrightnessPolicyOnly()
+    try { brightness.setKeepScreenOn({ keepScreenOn: false }) } catch (e) {}
   },
 
   startAll() {
@@ -572,8 +636,8 @@ export default {
   syncMenuLabels() {
     const p = hud.HAPTIC_PRESETS[presetKey] || hud.HAPTIC_PRESETS.std
     this.setField('presetLabel', p.label)
-    this.setField('nightLabel', nightMode ? 'Màn hình: Đêm (dịu)' : 'Màn hình: Sáng')
-    this.setField('demoBtnLabel', demo ? 'Dừng Demo' : 'Chạy Demo')
+    this.setField('brightLabel', BRIGHT_LABELS[brightMode] || BRIGHT_LABELS.auto)
+    this.setField('demoBtnLabel', demo ? 'Dừng thử' : 'Chạy thử')
   },
 
   refreshStatus() {
@@ -583,7 +647,7 @@ export default {
     if (!cfg.DEBUG_STATUS) {
       this.setField('status1', '')
       this.setField('status3', '')
-      this.setField('status2', demo ? 'DEMO · chạm để dừng' : shortSt.shortStatus(channel, statusC))
+      this.setField('status2', demo ? 'CHẠY THỬ · chạm dừng' : shortSt.shortStatus(channel, statusC))
       return
     }
     this.setField('status1', (demo ? 'DEMO ' : '') + (channel === 'A' ? 'LIVE ' : '') + statusA + ' #' + tickN)
@@ -607,7 +671,7 @@ export default {
     const bannerBase = v.mode === 'stale' ? 'banner-stale'
       : (v.mode === 'arrived' ? 'banner-arrived' : (v.mode === 'waiting' ? 'banner-wait' : ''))
     const bannerCls = isWait ? bannerBase : (bannerBase + ' banner-center').trim()
-    const subHint = isWait ? 'Mở Google Maps trên điện thoại'
+    const subHint = isWait ? 'Mở Google Maps trên ĐT'
       : (v.mode === 'stale' ? 'Kiểm tra điện thoại / Maps'
         : (v.mode === 'arrived' ? 'Đã đến điểm đến'
           : (v.mode === 'recalc' ? 'Đang tìm tuyến đường mới...' : '')))
@@ -674,11 +738,12 @@ export default {
     this.render()
   },
 
-  onToggleNight() {
-    userTouchedNight = true
-    nightMode = !nightMode
+  onCycleBright() {
+    userTouchedBright = true
+    const idx = BRIGHT_ORDER.indexOf(brightMode)
+    brightMode = BRIGHT_ORDER[(idx + 1) % BRIGHT_ORDER.length]
     this.applyBrightness()
-    try { storage.set({ key: KEY_NIGHT, value: nightMode ? '1' : '0' }) } catch (e) {}
+    try { storage.set({ key: KEY_BRIGHT, value: brightMode }) } catch (e) {}
     this.syncMenuLabels()
   },
 

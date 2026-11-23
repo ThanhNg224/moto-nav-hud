@@ -7,11 +7,18 @@ object Prefs {
     private const val KEY_CAPTURE = "capture"
     private const val KEY_TOKEN = "token"
     private const val KEY_AUTO_STOP_MIN = "auto_stop_min"
+    private const val KEY_AUTO_START = "auto_start"
     const val DEFAULT_TOKEN = "MOTONAV1"
     const val DEFAULT_AUTO_STOP_MIN = 10
     val AUTO_STOP_OPTIONS = intArrayOf(0, 5, 10, 15)
 
     private val tokenRx = Regex("^[A-Za-z0-9]{1,8}$")
+
+    fun isAutoStart(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean(KEY_AUTO_START, true)
+
+    fun setAutoStart(ctx: Context, on: Boolean) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean(KEY_AUTO_START, on).apply()
+    }
 
     fun isCapture(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean(KEY_CAPTURE, false)
 

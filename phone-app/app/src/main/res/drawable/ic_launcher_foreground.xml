@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Đường ray tối vòng cung 270° (nằm gọn trong vùng an toàn 66dp của adaptive icon) -->
+    <path
+        android:pathData="M34.2,73.8 A28,28 0 1,1 73.8,73.8"
+        android:strokeColor="#22324A"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- Vòng cung tiến độ ngọc lam đặc trưng của MotoNav HUD -->
+    <path
+        android:pathData="M34.2,73.8 A28,28 0 1,1 77.6,38.8"
+        android:strokeColor="#2DD4BF"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- Mũi tên dẫn đường trắng sắc nét ở chính giữa -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,32.5 L67.5,47.5 L59,47.5 L59,72.5 C59,74.2 57.7,75.5 56,75.5 L52,75.5 C50.3,75.5 49,74.2 49,72.5 L49,47.5 L40.5,47.5 Z" />
+</vector>

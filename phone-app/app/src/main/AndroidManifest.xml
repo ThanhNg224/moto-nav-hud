@@ -14,7 +14,9 @@
 
     <application
         android:allowBackup="false"
-        android:label="Moto Nav HUD"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="MotoNav"
         android:theme="@android:style/Theme.DeviceDefault.DayNight">
 
         <activity
@@ -34,7 +36,7 @@
         <service
             android:name=".NavNotificationListener"
             android:exported="true"
-            android:label="Moto Nav HUD"
+            android:label="MotoNav"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
@@ -45,7 +47,7 @@
             android:name=".NavTileService"
             android:exported="true"
             android:icon="@drawable/ic_hud_arrow"
-            android:label="Moto Nav HUD"
+            android:label="MotoNav"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />

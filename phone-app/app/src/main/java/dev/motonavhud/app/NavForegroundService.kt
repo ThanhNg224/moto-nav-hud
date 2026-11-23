@@ -77,6 +77,7 @@ class NavForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            NavBus.autoStartGate.onManualStop(NavBus.mapsState.k != NavState.K_IDLE)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -85,22 +86,23 @@ class NavForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        val channel = NotificationChannel(CHANNEL_ID, "Moto Nav HUD", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel(CHANNEL_ID, "MotoNav", NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val stopIntent = Intent(this, NavForegroundService::class.java).setAction(ACTION_STOP)
         val stopPi = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_hud_arrow)
-            .setContentTitle("Moto Nav HUD đang chạy")
-            .setContentText("Đang gửi chỉ đường tới đồng hồ qua BLE")
+            .setContentTitle("MotoNav đang chạy")
+            .setContentText("Đang kết nối chỉ đường tới Watch S5")
             .setOngoing(true)
             .setContentIntent(open)
-            .addAction(Notification.Action.Builder(null, "Dừng HUD", stopPi).build())
+            .addAction(Notification.Action.Builder(null, "Dừng", stopPi).build())
             .build()
         try {
             ServiceCompat.startForeground(this, NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         } catch (e: Exception) {
+            NavBus.autoStartGate.onAutoStartBlocked()
             NavBus.bleStatus = "không chạy được foreground service: ${e.javaClass.simpleName}"
             NavBus.changed()
             stopSelf()
@@ -113,6 +115,7 @@ class NavForegroundService : Service() {
         val err = ble.start()
         if (err != null) {
             // Lỗi không phục hồi được lúc khởi động (Bluetooth tắt, thiếu quyền...): dừng gọn, giữ lý do trên UI.
+            NavBus.autoStartGate.onBleExhausted(NavBus.mapsState.k != NavState.K_IDLE)
             NavBus.bleStatus = "không khởi động được: $err"
             NavBus.changed()
             stopSelf()
@@ -122,6 +125,8 @@ class NavForegroundService : Service() {
         active = true
         NavLog.i("service start")
         NavBus.bleStatus = "đang khởi động BLE"
+        NavBus.warning = ""
+        NavBus.autoStartGate.onServiceStarted()
         registerReceiver(btReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         acquireWakeLock()
         NavBus.serviceRunning = true
@@ -136,6 +141,7 @@ class NavForegroundService : Service() {
         if (!active || gen != ble.currentGeneration) return // lỗi của phiên đã bị thay thế
         if (++bleRetries > MAX_BLE_RETRIES) {
             active = false
+            NavBus.autoStartGate.onBleExhausted(NavBus.mapsState.k != NavState.K_IDLE)
             NavLog.i("ble giving up reason=$reason")
             NavBus.bleStatus = "BLE lỗi, đã dừng: $reason"
             NavBus.changed()
@@ -292,6 +298,7 @@ class NavForegroundService : Service() {
             ble.stop()
         }
         wakeLock?.let { if (it.isHeld) it.release() }
+        NavBus.autoStartGate.onServiceStopped()
         NavBus.serviceRunning = false
         NavBus.demo = false
         NavBus.currentState = NavState.IDLE
@@ -315,6 +322,17 @@ class NavForegroundService : Service() {
         private const val WAKE_LOCK_TIMEOUT_MS = 10 * 60_000L
 
         fun start(ctx: Context) = ctx.startForegroundService(Intent(ctx, NavForegroundService::class.java))
+
+        fun startByUser(ctx: Context) {
+            NavBus.autoStartGate.onManualStartRequested()
+            start(ctx)
+        }
+
         fun stop(ctx: Context) = ctx.stopService(Intent(ctx, NavForegroundService::class.java))
+
+        fun stopByUser(ctx: Context) {
+            NavBus.autoStartGate.onManualStop(NavBus.mapsState.k != NavState.K_IDLE)
+            stop(ctx)
+        }
     }
 }

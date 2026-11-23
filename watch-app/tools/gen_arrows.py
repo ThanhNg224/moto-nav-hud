@@ -212,30 +212,43 @@ def render(m, size=SIZE, safe_radius=46.0):
     return rasterize(fit_circle(shape(m), size, safe_radius), size)
 
 
-def render_app_icon(path):
-    """Sinh icon ứng dụng 160x160 nền tròn tối + vòng ngọc lam + mũi tên trắng sắc nét."""
-    arrow_alpha = render(1, size=ICON_SIZE, safe_radius=54.0)
-    cx = cy = ICON_SIZE / 2.0
+def render_brand_badge(path, size):
+    """Sinh biểu tượng MotoNav (đồng bộ 1:1 với Android adaptive icon): nền tối + vòng cung 270° ngọc lam + mũi tên trắng."""
+    arrow_alpha = render(1, size=size, safe_radius=size * 0.27)
+    cx = cy = size / 2.0
+    outer_r = size * 0.49
+    ring_r = size * 0.39
+    ring_half = size * 0.042
     rows = []
-    for y in range(ICON_SIZE):
+    for y in range(size):
         row = bytearray()
-        for x in range(ICON_SIZE):
-            d = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
-            if d > 78.5:
+        for x in range(size):
+            dx = x + 0.5 - cx
+            dy = y + 0.5 - cy
+            d = math.hypot(dx, dy)
+            if d > outer_r + 0.8:
                 row += bytes((0, 0, 0, 0))
                 continue
-            edge_a = max(0.0, min(1.0, 78.5 - d))
-            if d >= 71.0:
-                r, g, b = 45, 212, 191  # #2dd4bf teal ring
-            else:
-                r, g, b = 15, 23, 42    # #0f172a deep slate
+            edge_a = max(0.0, min(1.0, outer_r + 0.8 - d))
+            r, g, b = (17, 28, 48) if d <= ring_r else (11, 18, 32)  # #111c30 / #0b1220
+            # Vòng cung 270° (225° -> 135° theo chiều kim đồng hồ từ 12 giờ), phần ngọc lam chiếm ~72%
+            ring_dist = abs(d - ring_r)
+            if ring_dist <= ring_half + 0.8:
+                ang = (math.degrees(math.atan2(dx, -dy)) + 360.0) % 360.0
+                if ang >= 225.0 or ang <= 135.0:
+                    prog = ((ang - 225.0) % 360.0) / 270.0
+                    ra = max(0.0, min(1.0, ring_half + 0.8 - ring_dist))
+                    cr, cg, cb = (45, 212, 191) if prog <= 0.72 else (34, 50, 74)
+                    r = round(r * (1 - ra) + cr * ra)
+                    g = round(g * (1 - ra) + cg * ra)
+                    b = round(b * (1 - ra) + cb * ra)
             aa = arrow_alpha[y][x] / 255.0
             r = round(r * (1 - aa) + 255 * aa)
             g = round(g * (1 - aa) + 255 * aa)
             b = round(b * (1 - aa) + 255 * aa)
             row += bytes((r, g, b, round(edge_a * 255)))
         rows.append(row)
-    write_rgba_png(path, ICON_SIZE, rows)
+    write_rgba_png(path, size, rows)
 
 
 def main():
@@ -244,7 +257,8 @@ def main():
     os.makedirs(out, exist_ok=True)
     for m in range(14):
         png(os.path.join(out, 'm%02d.png' % m), SIZE, render(m))
-    render_app_icon(os.path.join(root, 'src', 'common', 'icon.png'))
+    render_brand_badge(os.path.join(root, 'src', 'common', 'icon.png'), ICON_SIZE)
+    render_brand_badge(os.path.join(root, 'src', 'common', 'emblem.png'), 68)
 
 
 if __name__ == '__main__':
