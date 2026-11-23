@@ -46,3 +46,12 @@ Quét -> nối -> subscribe -> nhận frame, Demo (mũi tên, khoảng cách, t�
 - Giữ giải pháp tối giản, không thêm dependency/abstraction không cần. Không đổi hợp đồng `docs/protocol.md` nếu không cần (đổi phải sửa cả hai phía + test).
 - Với thay đổi logic/hành vi đáng kể, nhờ một lượt review độc lập trước khi báo xong.
 - Báo trung thực: nói rõ cái gì đã chạy/kiểm chứng, cái gì chưa.
+
+## Phản biện review vòng 5 (`docs/research/10-codex-sol-high-audit-of-gemini-round5.json`)
+
+Đã kiểm chứng từng phát hiện (11/11) trực tiếp trên code thật. Cả **11/11 phát hiện đều có lỗi thật hoặc khoảng hở test thật** và đều đã được sửa tối giản kèm test hồi quy (không có phát hiện nào bị bác bỏ). Riêng phát hiện #1 có một **đánh đổi thực tế** cần ghi rõ để theo dõi khi chạy đường thật:
+
+- **Phát hiện #1 (Cao — `NavNotificationListener.verifySelectedAlive` & `docs/protocol.md` dòng 17/34)**:
+  - **Đã sửa**: Bỏ hoàn toàn `NavBus.touchMaps()`. `verifySelectedAlive()` nay tách rõ hai việc: (1) nếu thông báo biến mất/mất `FLAG_ONGOING_EVENT` → về `IDLE` ngay; (2) nếu có bản đăng cùng key với `postTime > selectedPostTime` (lỡ callback) → đọc bù bằng `handle(active, seed = true)` theo đúng tuổi `postTime`. Nếu `postTime` không đổi thì **không** làm mới `a`. Đã thống nhất định nghĩa `a` ở dòng 17 và dòng 34 của `docs/protocol.md`.
+  - **Đánh đổi UX thực tế cần lưu ý**: Trước đây khi kiểm trên OPPO CPH2873 + Google Maps 26.47 lúc đứng yên tại chỗ, Google Maps không đăng lại thông báo cho tới khi phút ETA đổi (có thể tới 60 s). Vì giữ chặt `MAX_SOURCE_AGE_MS = 10 s` (watch) và `staleMs = 15 s` (phone) để bảo vệ an toàn khi Maps bị treo, xe dừng đèn đỏ >10 s có thể tạm hiện `MẤT DỮ LIỆU` cho tới khi xe lăn bánh hoặc ETA nhảy phút (mũi tên sẽ tự hiện lại ngay). Nếu chạy đường thật thấy bất tiện, hướng xử lý an toàn ở vòng sau là thêm cờ trạng thái riêng trong protocol (vd chế độ "tĩnh/đang chờ") thay vì làm giả tuổi `a`.
+- **Phát hiện #6 (Vừa — `ProgressStyle` mét còn lại)**: Đã siết `extractProgressRemainingM` chỉ chấp nhận `category == "navigation"`, `template` có `ProgressStyle`, `!indeterminate`, có `android.progressSegments` không rỗng và `progressMax > 100` (loại thang phần trăm 0..100 mặc định của Android). **Chưa kiểm lại trên thông báo Google Maps 26.47 sống sau khi thêm điều kiện `android.progressSegments`**: nếu một phiên bản Maps nào đó không điền extra `android.progressSegments`, trường `r` sẽ an toàn về `-1` (ẩn km còn lại, không ảnh hưởng mũi tên hay `d`).

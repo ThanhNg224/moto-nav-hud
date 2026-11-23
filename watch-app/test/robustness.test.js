@@ -132,7 +132,7 @@ function mockBle() {
     },
     createGattClientDevice(id) {
       m.dev = {
-        connect(o) { log.push(['connect']); m.connectOpts = o },
+        connect(o) { log.push(['connect', id]); m.connectOpts = o },
         setBLEMtuSize(o) { log.push(['mtu']); m.mtuOpts = o },
         getServices(o) { log.push(['services']); m.svcOpts = o },
         setNotifyCharacteristicChanged(o) { log.push(['notify']); m.notifyOpts = o },
@@ -374,29 +374,52 @@ test('BLE: mọi thất bại trước frame đầu (connect.fail, state 0 sau 1
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'] })
   const m = mockBle()
   const tr = bleT.create({ onMessage: () => false, onStatus() {}, onLost() {} }, m.api)
-  const conns = () => m.log.filter((l) => l[0] === 'connect').length
+  const peers = () => m.log.filter((l) => l[0] === 'connect').map((l) => l[1])
   tr.start()
   m.onFound([{ deviceId: 'AA:BB', data: advWith([]) }])
-  m.connectOpts.fail({}, 5) // connect.fail
+  m.connectOpts.fail({}, 5) // connect.fail -> skip=[aa:bb]
   t.mock.timers.tick(1000)
-  // batch: AA:BB (đã thất bại) đứng trước CC:DD (mới) => chọn CC:DD kể cả sau SKIP_WAIT
+  // batch: AA:BB (đã thất bại) đứng trước CC:DD (mới) => chọn đúng CC:DD kể cả sau SKIP_WAIT
   t.mock.timers.tick(3500)
   m.onFound([{ deviceId: 'AA:BB', data: advWith([]) }, { deviceId: 'CC:DD', data: advWith([]) }])
-  assert.strictEqual(conns(), 2)
+  assert.deepStrictEqual(peers(), ['AA:BB', 'CC:DD'])
   m.dev.onBLEConnectionStateChange(1)
-  m.dev.onBLEConnectionStateChange(0) // ngắt trước frame => CC:DD cũng bị skip
+  m.dev.onBLEConnectionStateChange(0) // ngắt trước frame => skip=[aa:bb, cc:dd]
   t.mock.timers.tick(2000)
   t.mock.timers.tick(3500)
   m.onFound([{ deviceId: 'CC:DD', data: advWith([]) }, { deviceId: 'EE:FF', data: advWith([]) }])
-  assert.strictEqual(conns(), 3)
+  assert.deepStrictEqual(peers(), ['AA:BB', 'CC:DD', 'EE:FF'])
   m.dev.onBLEConnectionStateChange(2)
   m.mtuOpts.success({})
-  m.svcOpts.fail({}, 7) // svc fail => EE:FF skip
+  m.svcOpts.fail({}, 7) // svc fail => skip=[aa:bb, cc:dd, ee:ff]
   t.mock.timers.tick(4000)
   t.mock.timers.tick(3500)
   // cả ba đều đã thất bại, không còn máy mới: sau SKIP_WAIT vẫn chọn lại máy cũ
   m.onFound([{ deviceId: 'EE:FF', data: advWith([]) }])
-  assert.strictEqual(conns(), 4)
+  assert.deepStrictEqual(peers(), ['AA:BB', 'CC:DD', 'EE:FF', 'EE:FF'])
+  tr.stop()
+})
+
+test('BLE: xoay vòng các máy trong skip theo lần thử lâu nhất (LRU), không bỏ đói điện thoại đã hồi phục', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'] })
+  const m = mockBle()
+  const tr = bleT.create({ onMessage: () => false, onStatus() {}, onLost() {} }, m.api)
+  const peers = () => m.log.filter((l) => l[0] === 'connect').map((l) => l[1])
+  const batch = () => m.onFound([{ deviceId: 'BB:BB', data: advWith([]) }, { deviceId: 'AA:AA', data: advWith([]) }])
+  tr.start()
+  batch() // chưa thử ai -> chọn BB:BB
+  m.connectOpts.fail({}, 1) // skip = [bb:bb]
+  t.mock.timers.tick(1000)
+  batch() // AA:AA chưa thử -> ưu tiên chọn AA:AA
+  m.connectOpts.fail({}, 1) // skip = [bb:bb, aa:aa]
+  t.mock.timers.tick(2000)
+  t.mock.timers.tick(1500)
+  batch() // cả hai đều trong skip -> chọn máy thử lâu nhất BB:BB
+  m.connectOpts.fail({}, 1) // đẩy BB:BB xuống cuối -> skip = [aa:aa, bb:bb]
+  t.mock.timers.tick(3000)
+  t.mock.timers.tick(1500)
+  batch() // dù BB:BB vẫn đứng trước trong batch, phải xoay sang AA:AA (thử lâu nhất)
+  assert.deepStrictEqual(peers(), ['BB:BB', 'AA:AA', 'BB:BB', 'AA:AA'])
   tr.stop()
 })
 
@@ -526,10 +549,10 @@ test('BLE: pin loại không tính matched; seen > 0 giữ nguyên V3 (không nh
     t.mock.timers.tick(8000)
     t.mock.timers.tick(1000)
     assert.strictEqual(scans()[1], scans()[0]) // scanner vẫn thấy thiết bị => giữ V3 để nối ngay khi ĐT phát BLE
-    // Nếu 1 lượt quét không thấy thiết bị nào (seen === 0) mới đổi sang biến thể kế tiếp
+    // Nếu 1 lượt quét không thấy thiết bị nào (seen === 0) mới đổi sang biến thể kế tiếp (V4 = [])
     t.mock.timers.tick(8000)
     t.mock.timers.tick(1500)
-    assert.notStrictEqual(scans()[2], scans()[0])
+    assert.strictEqual(scans()[2], '[]')
     tr.stop()
     // fallback sau 7.9 s vẫn được nguyên hạn quét
     cfg.BLE_PINNED_ADDRESS = ''

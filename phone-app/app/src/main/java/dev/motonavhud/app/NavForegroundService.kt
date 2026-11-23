@@ -87,6 +87,9 @@ class NavForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            active = false
+            cancelRetry()
+            handler.removeCallbacks(tick)
             NavBus.autoStartGate.onManualStop(NavBus.mapsState.k != NavState.K_IDLE)
             stopSelf()
             return START_NOT_STICKY
@@ -209,8 +212,9 @@ class NavForegroundService : Service() {
     /** Trả chu kỳ tick tiếp theo (ms), hoặc -1 nếu service đang dừng. */
     private fun step(): Long {
         val now = SystemClock.elapsedRealtime()
+        val snap = NavBus.mapsSnapshot
         val subs = ble.subscriberCount
-        val activeWork = NavBus.demo || NavBus.mapsState.k != NavState.K_IDLE || subs > 0
+        val activeWork = NavBus.demo || snap.state.k != NavState.K_IDLE || subs > 0
         syncWakeLock(activeWork, now)
         if (activeWork && !lastActiveWork && subs == 0) ble.boostAdvertisingIfWaiting()
         lastActiveWork = activeWork
@@ -219,21 +223,20 @@ class NavForegroundService : Service() {
         if (NavBus.demo) {
             if (demoStart == 0L) demoStart = now
             throttle.offer(demoState(now - demoStart), now)
-            seenVersion = NavBus.mapsVersion
+            seenVersion = snap.version
             wasDemo = true
         } else {
             demoStart = 0L
-            // Khi đứng yên (đèn đỏ/đường thẳng), Maps không đăng lại notification; định kỳ 3 s xác nhận notification ongoing còn sống.
-            if (NavBus.mapsState.k != NavState.K_IDLE && now - NavBus.mapsStateAt >= VERIFY_ALIVE_MS && now - lastVerifyAt >= VERIFY_ALIVE_MS) {
+            // Định kỳ 3 s kiểm tra sự hiện diện & đọc bù postTime mới hơn (không làm mới a nếu post cũ giữ nguyên).
+            if (snap.state.k != NavState.K_IDLE && now - snap.atMs >= VERIFY_ALIVE_MS && now - lastVerifyAt >= VERIFY_ALIVE_MS) {
                 lastVerifyAt = now
                 NavNotificationListener.verifySourceAliveAsync()
             }
-            val v = NavBus.mapsVersion
-            if (wasDemo || v != seenVersion) {
-                // Thoát Demo: ép offer snapshot thật hiện tại (IDLE/hết hạn nếu không có nguồn Maps hợp lệ).
-                seenVersion = v
+            if (wasDemo || snap.version != seenVersion) {
+                // Thoát Demo hoặc có snapshot bất biến mới: offer nguyên bộ (state, atMs) cùng lúc.
+                seenVersion = snap.version
                 wasDemo = false
-                throttle.offer(NavBus.mapsState, NavBus.mapsStateAt)
+                throttle.offer(snap.state, snap.atMs)
             }
         }
         if (ble.isAdvertising || subs > 0) bleRetries = 0

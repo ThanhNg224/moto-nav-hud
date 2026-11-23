@@ -208,8 +208,9 @@ function view(state, now) {
   var cfg = state.cfg
   var m = state.msg
   if (!m && state.lost) { var s0 = emptyView('stale', 'MẤT DỮ LIỆU'); s0.arcPercent = 100; return s0 }
-  if (!m || m.k === 0) return emptyView('waiting', 'Chờ chỉ đường')
+  if (!m) return emptyView('waiting', 'Chờ chỉ đường')
   if (stale(state, now)) { var s1 = emptyView('stale', 'MẤT DỮ LIỆU'); s1.arcPercent = 100; return s1 }
+  if (m.k === 0) return emptyView('waiting', 'Chờ chỉ đường')
   var road = m.s
   if (cfg.FOLD_DIACRITICS) road = foldDiacritics(road)
   var street = road

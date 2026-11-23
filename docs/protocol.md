@@ -14,7 +14,7 @@ Nguồn sự thật duy nhất cho `phone-app/` và `watch-app/`. Đổi hợp �
 | `z` | session của phone | int | số ngẫu nhiên tạo mỗi lần service khởi động |
 | `q` | số thứ tự trong session | int | tăng nghiêm ngặt mỗi tin gửi đi |
 | `i` | định danh bước rẽ | int | phone tăng khi `(m, x, s)` đổi hoặc `d` tăng vọt khi qua bước mới; dùng để rung đúng một lần cho mỗi bước |
-| `a` | tuổi của nguồn, ms | int | thời gian từ lần Maps cập nhật thật gần nhất tới lúc gửi; heartbeat KHÔNG làm mới nguồn |
+| `a` | tuổi của nguồn, ms | int | thời gian từ lần Maps đăng cập nhật thật gần nhất (`postTime`) tới lúc gửi; heartbeat và kiểm tra thông báo còn sống KHÔNG làm mới `a` |
 | `k` | trạng thái | int | 0 rảnh/không có dẫn đường, 1 đang dẫn đường, 2 đang tính lại tuyến, 3 đã đến. **`k` có quyền cao hơn `m`** |
 | `m` | maneuver | int | bảng dưới |
 | `x` | lối ra vòng xuyến | int | 0 nếu không áp dụng |
@@ -31,7 +31,7 @@ Thứ tự cắt khi vượt ngân sách byte: bỏ `e`, rồi rút `s` dần, r
 ## Quy tắc phía phone
 
 - Gửi khi có thay đổi (`k`, `m`, `x`, `s`, `d` lệch từ 10 m trở lên) và heartbeat mỗi 1000 ms. Heartbeat gửi lại trạng thái cuối cùng với `a` tăng đúng theo thời gian, `q` tăng.
-- Khi thông báo Maps biến mất, listener mất kết nối, parse thất bại hoặc nguồn không còn xác nhận sống quá 15 giây: gửi `k=0` (hoặc `k=2` nếu đang tính lại tuyến), tuyệt đối không giữ `k=1` với dữ liệu cũ. Khi dừng đèn đỏ/đi thẳng mà Maps không đăng lại thông báo, phone định kỳ xác nhận thông báo ongoing của Maps vẫn còn hiện hữu trong `NotificationListenerService` để giữ `a` tươi; nếu thông báo biến mất hoặc listener ngắt thì lập tức về `k=0`.
+- Khi thông báo Maps biến mất, listener mất kết nối, parse thất bại hoặc nguồn không có bản đăng mới quá 15 giây: gửi `k=0` (hoặc `k=2` nếu đang tính lại tuyến), tuyệt đối không giữ `k=1` với dữ liệu cũ. Phone định kỳ 3 s kiểm tra `getActiveNotifications` để phát hiện ngay thông báo biến mất hoặc đọc bù bản đăng có `postTime` mới hơn bị lỡ callback — nhưng KHÔNG làm mới `a` nếu thông báo không có cập nhật mới.
 - `k=3` chỉ khi đã nhận ra rõ là đến nơi; hủy dẫn đường là `k=0`.
 - `z` mới mỗi lần service khởi động; `q` bắt đầu từ 1.
 

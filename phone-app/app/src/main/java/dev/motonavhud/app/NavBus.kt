@@ -5,12 +5,19 @@ import dev.motonavhud.core.AutoStartGate
 import dev.motonavhud.core.NavState
 import java.util.concurrent.CopyOnWriteArraySet
 
+/** Ảnh chụp bất biến của nguồn Maps: đọc/ghi nguyên tử để tránh ghép nhầm state cũ với timestamp mới. */
+data class MapsSnapshot(
+    val state: NavState,
+    val atMs: Long,
+    val version: Int,
+)
+
 /** Trạng thái dùng chung trong process: nguồn (listener/demo) -> service -> UI. */
 object NavBus {
     val autoStartGate = AutoStartGate()
-    @Volatile var mapsState: NavState = NavState.IDLE; private set
-    @Volatile var mapsStateAt: Long = 0L; private set
-    @Volatile var mapsVersion: Int = 0; private set
+    @Volatile var mapsSnapshot: MapsSnapshot = MapsSnapshot(NavState.IDLE, 0L, 0); private set
+
+    val mapsState: NavState get() = mapsSnapshot.state
 
     @Volatile var demo = false
     @Volatile var serviceRunning = false
@@ -31,20 +38,9 @@ object NavBus {
     /** Một cập nhật thật từ Maps (hoặc IDLE khi notification biến mất/listener ngắt). Trả về version mới. */
     fun publishMaps(state: NavState, atMs: Long = SystemClock.elapsedRealtime()): Int {
         val ver = synchronized(this) {
-            mapsState = state
-            mapsStateAt = atMs
-            ++mapsVersion
-        }
-        onServiceWake?.invoke()
-        return ver
-    }
-
-    /** Làm mới mốc thời gian khi xác nhận notification Maps đang chọn vẫn còn sống (đứng đèn đỏ/đường thẳng). Trả null nếu đã có bản mới hơn. */
-    fun touchMaps(expectedVersion: Int, atMs: Long = SystemClock.elapsedRealtime()): Int? {
-        val ver = synchronized(this) {
-            if (mapsVersion != expectedVersion || mapsState.k == NavState.K_IDLE) return null
-            mapsStateAt = atMs
-            ++mapsVersion
+            val next = mapsSnapshot.version + 1
+            mapsSnapshot = MapsSnapshot(state, atMs, next)
+            next
         }
         onServiceWake?.invoke()
         return ver

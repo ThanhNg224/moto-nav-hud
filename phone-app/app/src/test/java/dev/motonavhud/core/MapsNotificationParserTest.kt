@@ -165,7 +165,7 @@ class MapsNotificationParserTest {
         assertEquals("14:02", s2.e)
         assertEquals(3899, s2.r)
 
-        // shortCriticalText làm dự phòng khoảng cách khi title không có số mét; "Arrive 14:19" không bị nhầm thành M_ARRIVE.
+        // shortCriticalText làm dự phòng khoảng cách khi title không có số mét; "Arrive 14:30" tách riêng khỏi tên đường.
         val s3 = MapsNotificationParser.parse(
             title = "Turn left onto Nguyễn Trãi",
             text = "Arrive\u00a014:30",
@@ -177,6 +177,7 @@ class MapsNotificationParserTest {
         assertEquals(NavState.K_NAVIGATING, s3.k)
         assertEquals(NavState.M_LEFT, s3.m)
         assertEquals(120, s3.d)
+        assertEquals("Nguyễn Trãi", s3.s)
         assertEquals("14:30", s3.e)
         assertEquals(2500, s3.r)
 
@@ -190,6 +191,85 @@ class MapsNotificationParserTest {
             progressRemainingM = 5000,
         )
         assertEquals(NavState.K_IDLE, s4.k)
+    }
+
+    @Test fun round5AuditRegressions() {
+        // 1. ETA đổi 14:30 -> 14:31 không đổi tên đường và KHÔNG tạo bước mới (stepId i giữ nguyên để không rung lại)
+        val a1 = MapsNotificationParser.parse("Turn left onto Nguyễn Trãi", "Arrive\u00a014:30", null, null, "120\u00a0m")
+        val a2 = MapsNotificationParser.parse("Turn left onto Nguyễn Trãi", "Arrive\u00a014:31", null, null, "120\u00a0m")
+        assertEquals("Nguyễn Trãi", a1.s)
+        assertEquals("Nguyễn Trãi", a2.s)
+        assertEquals("14:30", a1.e)
+        assertEquals("14:31", a2.e)
+        var now = 1000L
+        val th = Throttle({ now }, z = 1)
+        th.offer(a1, now)
+        val e1 = th.poll()!!
+        now += 1000L
+        th.offer(a2, now)
+        val e2 = th.poll()!!
+        assertEquals(e1.i, e2.i)
+
+        // 2. Dòng tóm tắt chuyến đi ở text không cướp `d` trước shortCriticalText và đi đúng vào `r` + `e`
+        val sum = MapsNotificationParser.parse(
+            title = "Head toward P. Tố Hữu",
+            text = "15 min · 4.2 km · Arrive 14:30",
+            subText = null,
+            bigText = null,
+            shortCriticalText = "80\u00a0m",
+        )
+        assertEquals(80, sum.d)
+        assertEquals(4200, sum.r)
+        assertEquals("14:30", sum.e)
+        assertEquals("P. Tố Hữu", sum.s)
+
+        // 3. Dấu chấm viết tắt ("Dr.", "P.") trong cụm tên đường đứng đầu KHÔNG làm lộ "Left"/"Trái" thành hướng rẽ
+        val dr = MapsNotificationParser.parse("100 m", "On Dr. Left Fork Road", null, null)
+        assertEquals(NavState.K_NAVIGATING, dr.k)
+        assertEquals(NavState.M_UNKNOWN, dr.m)
+        assertEquals(100, dr.d)
+        assertEquals("Dr. Left Fork Road", dr.s)
+
+        val drThenTurn = MapsNotificationParser.parse("100 m", "On Dr. Main St., turn right onto B", null, null)
+        assertEquals(NavState.M_RIGHT, drThenTurn.m)
+        assertEquals("B", drThenTurn.s)
+
+        val vnAbbrev = MapsNotificationParser.parse("100 m", "Trên P. Trái Cây", null, null)
+        assertEquals(NavState.M_UNKNOWN, vnAbbrev.m)
+
+        // 4. "Turn left in - 30 m" bị từ chối như khoảng cách âm; "Turn right – 100 m" vẫn hợp lệ
+        val negIn = MapsNotificationParser.parse("", "Turn left in - 30 m", null, null)
+        assertEquals(NavState.M_LEFT, negIn.m)
+        assertEquals(-1, negIn.d)
+        val negVi = MapsNotificationParser.parse("", "Rẽ trái sau - 30 m", null, null)
+        assertEquals(NavState.M_LEFT, negVi.m)
+        assertEquals(-1, negVi.d)
+
+        // 5. Giữ nguyên cờ ambiguous qua ranh giới parser để listener chặn icon fallback
+        val amb = MapsNotificationParser.parseDetailed("200 m", "Turn left or right", null, null)
+        assertEquals(NavState.M_UNKNOWN, amb.state.m)
+        assertTrue(amb.ambiguous)
+        val noDir = MapsNotificationParser.parseDetailed("200 m", "Nguyễn Văn Linh", null, null)
+        assertEquals(NavState.M_UNKNOWN, noDir.state.m)
+        assertEquals(false, noDir.ambiguous)
+
+        // 6. ProgressStyle chỉ trừ progressMax - progress khi có segments và thang > 100 (loại thang % 0..100 mặc định)
+        assertEquals(
+            -1,
+            MapsNotificationParser.extractProgressRemainingM("navigation", "android.app.Notification\$ProgressStyle", false, false, 35, 100),
+        )
+        assertEquals(
+            -1,
+            MapsNotificationParser.extractProgressRemainingM("navigation", "android.app.Notification\$ProgressStyle", false, true, 35, 100),
+        )
+        assertEquals(
+            -1,
+            MapsNotificationParser.extractProgressRemainingM("progress", "android.app.Notification\$ProgressStyle", false, true, 0, 5000),
+        )
+        assertEquals(
+            9959,
+            MapsNotificationParser.extractProgressRemainingM("navigation", "android.app.Notification\$ProgressStyle", false, true, 0, 9959),
+        )
     }
 
     @Test fun round3Regressions() = round3.forEach(::check)

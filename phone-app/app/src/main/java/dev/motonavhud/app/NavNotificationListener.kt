@@ -20,9 +20,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 class NavNotificationListener : NotificationListenerService() {
-    /** Key của notification Maps đang là nguồn; chỉ khi chính nó biến mất mới xóa tuyến. */
+    /** Key & postTime của notification Maps đang là nguồn; chỉ khi chính nó biến mất mới xóa tuyến. */
     private var selectedKey: String? = null
     private var selectedVersion: Int = -1
+    private var selectedPostTime: Long = -1L
 
     override fun onListenerConnected() {
         instance = this
@@ -41,6 +42,7 @@ class NavNotificationListener : NotificationListenerService() {
         synchronized(this) {
             selectedKey = null
             selectedVersion = -1
+            selectedPostTime = -1L
         }
         NavBus.publishMaps(NavState.IDLE)
         NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
@@ -67,6 +69,7 @@ class NavNotificationListener : NotificationListenerService() {
             if (sbn.key == selectedKey) {
                 selectedKey = null
                 selectedVersion = -1
+                selectedPostTime = -1L
                 NavLog.i("listener source cleared (not ongoing)")
                 NavBus.publishMaps(NavState.IDLE)
                 NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
@@ -74,17 +77,22 @@ class NavNotificationListener : NotificationListenerService() {
             return
         }
         val x = n.extras
-        // Google Maps Android 16/17 Live Updates (Notification$ProgressStyle) đặt quãng đường còn lại ở progressMax - progress (mét).
-        val template = x.getString(Notification.EXTRA_TEMPLATE).orEmpty()
+        // Chỉ trừ progressMax - progress làm mét còn lại khi có bằng chứng ProgressStyle có segments theo mét (>100).
+        val template = x.getString(Notification.EXTRA_TEMPLATE)
         val progressMax = x.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
         val progress = x.getInt(Notification.EXTRA_PROGRESS, 0)
         val indeterminate = x.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false)
-        val progressRemainingM = if (template.contains("ProgressStyle") && !indeterminate && progressMax > 0 && progress in 0..progressMax) {
-            progressMax - progress
-        } else {
-            -1
-        }
-        val parsed = MapsNotificationParser.parse(
+        @Suppress("DEPRECATION")
+        val segments = x.get("android.progressSegments") as? Collection<*>
+        val progressRemainingM = MapsNotificationParser.extractProgressRemainingM(
+            category = n.category,
+            template = template,
+            indeterminate = indeterminate,
+            hasSegments = !segments.isNullOrEmpty(),
+            progress = progress,
+            progressMax = progressMax,
+        )
+        val detailed = MapsNotificationParser.parseDetailed(
             x.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
             x.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
             x.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString(),
@@ -92,8 +100,9 @@ class NavNotificationListener : NotificationListenerService() {
             x.getCharSequence("android.shortCriticalText")?.toString(),
             progressRemainingM,
         )
-        // Dự phòng bảo thủ: chỉ đọc largeIcon của notification category=navigation khi phần chữ chưa có hướng rẽ.
-        val state = if (parsed.k == NavState.K_NAVIGATING && parsed.m == NavState.M_UNKNOWN && n.category == Notification.CATEGORY_NAVIGATION) {
+        val parsed = detailed.state
+        // Dự phòng bảo thủ: chỉ dùng largeIcon khi văn bản KHÔNG nói hướng (không mơ hồ trái/phải) và category=navigation.
+        val state = if (!detailed.ambiguous && parsed.k == NavState.K_NAVIGATING && parsed.m == NavState.M_UNKNOWN && n.category == Notification.CATEGORY_NAVIGATION) {
             val fromIcon = classifyLargeIcon(n.getLargeIcon())
             if (fromIcon != NavState.M_UNKNOWN) parsed.copy(m = fromIcon) else parsed
         } else {
@@ -106,9 +115,10 @@ class NavNotificationListener : NotificationListenerService() {
             selectedKey = key
             NavLog.i("listener selected key=${key.hashCode()}")
         }
+        selectedPostTime = sbn.postTime
         NavLog.v("parse k=${state.k} m=${state.m} d=${state.d} street.len=${state.s.length} seed=$seed")
         val now = SystemClock.elapsedRealtime()
-        val ageMs = if (seed) (System.currentTimeMillis() - sbn.postTime).coerceAtLeast(0) else 0L
+        val ageMs = if (seed) (System.currentTimeMillis() - sbn.postTime).coerceAtLeast(0L) else 0L
         selectedVersion = NavBus.publishMaps(state, now - ageMs)
         if (state.k == NavState.K_NAVIGATING) {
             NavBus.autoStartGate.onMapsActive(now)
@@ -141,6 +151,7 @@ class NavNotificationListener : NotificationListenerService() {
         if (sbn.packageName != MAPS_PACKAGE || sbn.key != selectedKey) return
         selectedKey = null
         selectedVersion = -1
+        selectedPostTime = -1L
         NavLog.i("listener source removed")
         NavBus.publishMaps(NavState.IDLE)
         NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
@@ -166,32 +177,44 @@ class NavNotificationListener : NotificationListenerService() {
         NavState.M_UNKNOWN
     }
 
-    /** Kiểm tra notification Maps đang chọn có còn tồn tại trên hệ thống không (chạy nền, tránh kẹt UI thread). */
+    /**
+     * Tách riêng "thông báo còn hiện diện" khỏi "dữ liệu rẽ còn mới" (chạy nền, tránh kẹt UI thread):
+     * - Nếu thông báo biến mất hoặc hết cờ ongoing -> xóa về IDLE ngay.
+     * - Nếu có bản đăng cùng key mới hơn (postTime tăng, bị lỡ callback) -> đọc bù với tuổi thật theo postTime.
+     * - Nếu cùng postTime cũ -> KHÔNG làm mới `a`, để cơ chế hết hạn an toàn tự ẩn mũi tên nếu Maps bị treo.
+     */
     private fun verifySelectedAlive() {
         val key: String
         val ver: Int
+        val prevPostTime: Long
         synchronized(this) {
             key = selectedKey ?: return
             ver = selectedVersion
+            prevPostTime = selectedPostTime
         }
-        val alive: Boolean? = try {
-            getActiveNotifications(arrayOf(key))?.any {
+        val active: StatusBarNotification? = try {
+            getActiveNotifications(arrayOf(key))?.firstOrNull {
                 it.key == key && it.packageName == MAPS_PACKAGE && (it.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
             }
         } catch (_: Exception) {
-            null
+            return // lỗi IPC: không làm mới, để cơ chế hết hạn an toàn tự xử lý
         }
-        if (alive == null) return // lỗi IPC: không làm mới, để cơ chế hết hạn an toàn tự xử lý
-        synchronized(this) {
-            if (selectedKey != key || selectedVersion != ver) return
-            if (alive) {
-                NavBus.touchMaps(ver)?.let { selectedVersion = it }
-            } else {
+        if (active == null) {
+            synchronized(this) {
+                if (selectedKey != key || selectedVersion != ver) return
                 selectedKey = null
                 selectedVersion = -1
+                selectedPostTime = -1L
                 NavLog.i("listener source gone on verify")
                 NavBus.publishMaps(NavState.IDLE)
                 NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
+            }
+            return
+        }
+        if (active.postTime > prevPostTime) {
+            synchronized(this) {
+                if (selectedKey != key || selectedVersion != ver) return
+                handle(active, seed = true)
             }
         }
     }
@@ -202,7 +225,7 @@ class NavNotificationListener : NotificationListenerService() {
         private val verifyExec = Executors.newSingleThreadExecutor()
         private val verifyBusy = AtomicBoolean(false)
 
-        /** Yêu cầu kiểm tra bất đồng bộ xem notification Maps đang chọn còn sống hay không. */
+        /** Yêu cầu kiểm tra bất đồng bộ xem notification Maps đang chọn còn sống hay có post mới bị lỡ không. */
         fun verifySourceAliveAsync() {
             val l = instance ?: return
             if (!verifyBusy.compareAndSet(false, true)) return

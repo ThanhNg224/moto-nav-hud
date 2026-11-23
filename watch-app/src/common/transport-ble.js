@@ -183,8 +183,13 @@ function create(cb, api) {
 
   function scheduleRetry(why) {
     closeAttempt()
-    // Mọi thất bại trước frame đầu tiên: ưu tiên máy khác ở lần quét sau
-    if (!gotFrame && curAddr && skip.indexOf(curAddr) < 0) { skip.push(curAddr); if (skip.length > 4) skip.shift() }
+    // Mọi thất bại trước frame đầu tiên: đẩy địa chỉ xuống CUỐI skip (LRU: đầu mảng = thử lâu nhất)
+    if (!gotFrame && curAddr) {
+      var si = skip.indexOf(curAddr)
+      if (si >= 0) skip.splice(si, 1)
+      skip.push(curAddr)
+      if (skip.length > 4) skip.shift()
+    }
     if (gotFrame) { gotFrame = false; lostCb() }
     if (!running) return
     var list = cfg.BLE_BACKOFF_MS
@@ -224,7 +229,8 @@ function create(cb, api) {
         })
       }
       var found = false
-      var held = null   // máy đã skip thấy trong scan này: thử lại sau cửa sổ ưu tiên/khi hết hạn nếu không có máy mới
+      var held = null   // máy đã skip thấy trong scan này: ưu tiên máy thử lâu nhất (chỉ số nhỏ nhất trong skip)
+      var heldRank = Infinity
       var choose = function (r) {
         found = true
         curAddr = norm(r.deviceId)
@@ -235,7 +241,7 @@ function create(cb, api) {
         callback: sguard(function (results) {
           if (found || !results || !results.length) return
           L.count('scan.results', results.length)
-          var fresh = null, again = null
+          var fresh = null, again = null, againRank = Infinity
           for (var n = 0; n < results.length; n++) {
             seen++
             if (!acceptResult(results[n])) continue
@@ -249,14 +255,20 @@ function create(cb, api) {
             }
             if (cfg.BLE_PINNED_ADDRESS) {
               if (!fresh) fresh = results[n]
-            } else if (skip.indexOf(id) < 0) {
-              if (!fresh) fresh = results[n]
-            } else if (!again) again = results[n]
+            } else {
+              var rank = skip.indexOf(id)
+              if (rank < 0) {
+                if (!fresh) fresh = results[n]
+              } else if (rank < againRank) {
+                again = results[n]
+                againRank = rank
+              }
+            }
           }
           if (cfg.DEBUG_STATUS) status(scanText())
-          // ưu tiên máy chưa thử; máy đã thất bại chỉ được chọn lại sau SKIP_WAIT_MS khi không còn máy mới
-          if (again) held = again
-          var r = fresh || (again && Date.now() - scanAt >= SKIP_WAIT_MS ? again : null)
+          // ưu tiên máy chưa thử; trong các máy đã skip, xoay theo máy thử lâu nhất (rank nhỏ nhất)
+          if (again && againRank < heldRank) { held = again; heldRank = againRank }
+          var r = fresh || (held && Date.now() - scanAt >= SKIP_WAIT_MS ? held : null)
           if (r) choose(r)
         }),
         fail: sguard(function (data, c) { scheduleRetry('sub ' + code(data, c)) })
@@ -271,6 +283,7 @@ function create(cb, api) {
         seen = 0
         matched = 0
         held = null
+        heldRank = Infinity
         scanAt = Date.now()
         // mỗi biến thể có hạn quét riêng: không khớp máy nào thì đổi biến thể; chỉ thấy máy đã skip thì thử lại chúng
         if (skipTimer) clearTimeout(skipTimer)
