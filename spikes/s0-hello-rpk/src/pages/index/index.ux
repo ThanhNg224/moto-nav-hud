@@ -1,0 +1,43 @@
+<template>
+  <div class="page">
+    <text class="title">Hello S5</text>
+    <text class="street">Đường Nguyễn Văn Linh ơ ư ế ộ</text>
+    <image class="arrow" src="/common/arrow.png"></image>
+  </div>
+</template>
+
+<style>
+.page {
+  width: 480px;
+  height: 480px;
+  background-color: #000000;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.title {
+  font-size: 64px;
+  color: #ffffff;
+}
+.street {
+  font-size: 28px;
+  color: #ffffff;
+  margin-top: 16px;
+}
+.arrow {
+  width: 128px;
+  height: 128px;
+  margin-top: 24px;
+  transform: rotate(45deg);
+}
+</style>
+
+<script>
+import brightness from '@system.brightness'
+
+export default {
+  onShow() {
+    brightness.setKeepScreenOn({ keepScreenOn: true })
+  }
+}
+</script>

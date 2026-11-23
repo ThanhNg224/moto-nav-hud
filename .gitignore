@@ -1,0 +1,30 @@
+# OS & editor
+.DS_Store
+*.swp
+.idea/
+*.iml
+
+# Temporary planning & handoff notes (never commit)
+docs/plans/
+
+# Secrets, signing keys & local SDK config
+*.pem
+*.jks
+*.keystore
+local.properties
+captures/
+
+# Build outputs & dependencies
+node_modules/
+.temp_*/
+watch-app/build/
+watch-app/dist/
+watch-app/out/
+phone-app/build/
+phone-app/app/build/
+phone-app/.gradle/
+phone-app/.kotlin/
+spikes/*/build/
+spikes/*/dist/
+spikes/*/out/
+spikes/*/node_modules/

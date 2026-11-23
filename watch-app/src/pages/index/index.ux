@@ -1,0 +1,307 @@
+<template>
+  <div class="page" onclick="onTap">
+    <image class="arrow" if="{{arrow}}" src="{{arrow}}"></image>
+    <text class="banner {{bannerClass}}" if="{{banner}}">{{banner}}</text>
+    <text class="hint" if="{{hint}}">{{hint}}</text>
+    <text class="dist {{distClass}}" if="{{distance}}">{{distance}}</text>
+    <text class="street" if="{{street}}">{{street}}</text>
+    <text class="bottom" if="{{bottom}}">{{bottom}}</text>
+    <text class="st st1" if="{{status1}}">{{status1}}</text>
+    <text class="st st2 {{statusClass}}" if="{{status2}}">{{status2}}</text>
+    <text class="st3" if="{{status3}}">{{status3}}</text>
+  </div>
+</template>
+
+<style>
+/* Màn tròn (design 480, bán kính 240). Toạ độ tuyệt đối, chữ canh giữa; dư chiều cao cho dấu/nét dưới tiếng Việt */
+.page {
+  width: 480px;
+  height: 480px;
+  background-color: #000000;
+}
+.arrow {
+  position: absolute;
+  left: 176px;
+  top: 26px;
+  width: 128px;
+  height: 128px;
+}
+.dist {
+  position: absolute;
+  left: 40px;
+  top: 154px;
+  width: 400px;
+  height: 98px;
+  font-size: 78px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+.dist-far { color: #ffd000; }
+.dist-near { color: #ff5a36; }
+.street {
+  position: absolute;
+  left: 65px;
+  top: 252px;
+  width: 350px;
+  height: 76px;
+  font-size: 30px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+.bottom {
+  position: absolute;
+  left: 85px;
+  top: 334px;
+  width: 310px;
+  height: 40px;
+  font-size: 26px;
+  font-weight: bold;
+  color: #cfcfcf;
+  text-align: center;
+}
+.banner {
+  position: absolute;
+  left: 40px;
+  top: 146px;
+  width: 400px;
+  height: 78px;
+  font-size: 50px;
+  font-weight: bold;
+  color: #ffd000;
+  text-align: center;
+}
+.banner-wait { color: #ffffff; }
+.banner-stale { color: #ff5a36; }
+.banner-arrived { color: #5ce67a; }
+.hint {
+  position: absolute;
+  left: 50px;
+  top: 232px;
+  width: 380px;
+  height: 44px;
+  font-size: 26px;
+  font-weight: bold;
+  color: #a8a8a8;
+  text-align: center;
+}
+/* Dòng trạng thái: cao 34px cho font 20px (không cắt dấu nặng/nét dưới tiếng Việt); width 280 nằm gọn dây cung y=424 */
+.st {
+  position: absolute;
+  left: 100px;
+  width: 280px;
+  height: 34px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #6ee787;
+  text-align: center;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.st-ok { color: #6ee787; }
+.st-warn { color: #ffd000; }
+.st-err { color: #ff6b6b; }
+.st3 {
+  position: absolute;
+  left: 130px;
+  top: 418px;
+  width: 220px;
+  height: 34px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #9be59b;
+  text-align: center;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+.st1 { top: 360px; }
+.st2 { top: 388px; }
+</style>
+
+<script>
+import brightness from '@system.brightness'
+import vibrator from '@system.vibrator'
+
+const hud = require('../../common/hud-logic.js')
+const cfg = require('../../common/config.js')
+const haptics = require('../../common/haptics.js')
+const ic = require('../../common/transport-interconnect.js')
+const ble = require('../../common/transport-ble.js')
+const shortSt = require('../../common/status.js')
+const L = require('../../common/log.js')
+
+let live = hud.createState()   // trạng thái tin thật
+let demo = null                // trạng thái demo cục bộ (tách khỏi live); null = không chạy demo
+let transports = []
+let renderTimer = null
+let demoTimer = null
+let demoIdx = 0
+let demoQ = 0
+let channel = ''
+let statusA = ''
+let statusC = ''
+let extra = ''
+let diagC = ''
+let tickN = 0
+let tickTimer = null
+let buzz = null
+let lastMode = ''
+
+export default {
+  private: {
+    arrow: '',
+    distance: '',
+    distClass: '',
+    banner: 'Chờ dữ liệu',
+    bannerClass: 'banner-wait',
+    hint: 'Chạm để chạy DEMO',
+    street: '',
+    bottom: '',
+    status1: '',
+    status2: '',
+    statusClass: 'st-warn',
+    status3: ''
+  },
+
+  onShow() {
+    try {
+      brightness.setKeepScreenOn({
+        keepScreenOn: true,
+        fail: (data, code) => { extra = 'sáng lỗi ' + code; this.refreshStatus() }
+      })
+    } catch (e) { extra = 'sáng ' + e }
+    this.startAll()
+  },
+  onHide() { this.stopAll(true) },
+  onDestroy() { this.stopAll(true) },
+
+  startAll() {
+    this.stopAll(false)
+    live = hud.createState()
+    channel = ''
+    statusA = ''
+    statusC = ''
+    buzz = haptics.create(vibrator, (e) => { extra = e; this.refreshStatus() })
+    const self = this
+    const mk = (m, tag) => m.create({
+      onMessage: (str) => self.onRaw(str, tag),
+      onStatus: (s) => { if (tag === 'A') statusA = s; else statusC = s; self.refreshStatus() },
+      onDiag: (d) => { diagC = d; self.refreshStatus() },
+      onLost: () => self.onLost(tag)
+    })
+    transports = [mk(ic, 'A'), mk(ble, 'C')]
+    transports.forEach((t) => { try { t.start() } catch (e) { extra = 'start ' + e } })
+    renderTimer = setInterval(() => self.render(), 500)
+    tickN = 0
+    if (cfg.DEBUG_STATUS) {
+      tickTimer = setInterval(() => { tickN++; self.refreshStatus() }, 1000)
+    }
+    this.render()
+  },
+
+  stopAll(release) {
+    transports.forEach((t) => { try { t.stop() } catch (e) {} })
+    transports = []
+    if (renderTimer) { clearInterval(renderTimer); renderTimer = null }
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
+    this.stopDemo()
+    if (buzz) buzz.cancel()
+    if (release) { try { brightness.setKeepScreenOn({ keepScreenOn: false }) } catch (e) {} }
+  },
+
+  // Trả true chỉ khi tin được bộ lọc z/q CHẤP NHẬN (transport dùng làm "kênh còn sống")
+  onRaw(str, tag) {
+    const msg = hud.parsePayload(str)
+    if (!msg) return false
+    const r = hud.accept(live, msg, Date.now())
+    if (!r.accepted) { L.count('hud.drop'); return false }
+    L.count('hud.accept')
+    channel = tag
+    if (msg.k !== 0 && demo) this.stopDemo() // phiên dẫn đường thật bắt đầu: dừng demo
+    if (!demo) this.applyVibe(r)
+    this.render()
+    return true
+  },
+
+  onLost(tag) {
+    if (tag !== channel) return
+    channel = ''
+    const v = hud.invalidate(live)
+    L.log('lost', 'channel=' + tag, v ? 'pulse' : 'no-pulse')
+    // xung "lost" đã bắt đầu thì không bị ngắt bởi ngắt kênh/heartbeat; chỉ hủy mẫu rẽ
+    if (!demo) { if (v) { buzz.cancel(); buzz.play(v) } else buzz.cancelTurn() }
+    this.render()
+  },
+
+  applyVibe(r) {
+    if (r.vibe) buzz.play(r.vibe)
+    else if (r.cancel) buzz.cancelTurn()
+  },
+
+  // Chỉ ghi thuộc tính reactive khi giá trị thực sự đổi (tránh vẽ lại thừa trên đồng hồ)
+  setField(k, v) { if (this[k] !== v) this[k] = v },
+
+  // Hai dòng: A (interconnect) và C (BLE); kênh đang sống có nhãn LIVE
+  refreshStatus() {
+    this.setField('statusClass', 'st-' + shortSt.statusTone(channel, statusC, !!demo))
+    if (!cfg.DEBUG_STATUS) {
+      this.setField('status1', '')
+      this.setField('status3', '')
+      this.setField('status2', demo ? 'DEMO - chạm để dừng' : shortSt.shortStatus(channel, statusC))
+      return
+    }
+    this.setField('status1', (demo ? 'DEMO ' : '') + (channel === 'A' ? 'LIVE ' : '') + statusA + ' #' + tickN)
+    this.setField('status3', diagC)
+    this.setField('status2', ((channel === 'C' ? 'LIVE ' : '') + statusC + (extra ? ' ' + extra : '')).trim())
+  },
+
+  render() {
+    const now = Date.now()
+    const st = demo || live
+    const ev = hud.tick(st, now)
+    if (ev === 'lost') { L.log('stale', 'pulse'); buzz.cancel(); buzz.play('lost') }
+    const v = hud.view(st, now)
+    if (v.mode !== lastMode) { L.log('mode', lastMode + '->' + v.mode); lastMode = v.mode }
+    this.setField('arrow', v.arrow || '')
+    this.setField('distance', v.distance)
+    this.setField('distClass', v.urgency === 'near' ? 'dist-near' : (v.urgency === 'far' ? 'dist-far' : ''))
+    this.setField('banner', v.banner)
+    this.setField('bannerClass', v.mode === 'stale' ? 'banner-stale' : (v.mode === 'arrived' ? 'banner-arrived' : (v.mode === 'waiting' ? 'banner-wait' : '')))
+    // gợi ý chỉ hiện khi chờ (không có khoảng cách/đường); gợi ý demo nằm ở dòng trạng thái riêng
+    this.setField('hint', (!demo && v.mode === 'waiting' && !v.distance && !v.street) ? 'Chạm để chạy DEMO' : '')
+    this.setField('street', v.street)
+    this.setField('bottom', v.bottom)
+    this.refreshStatus()
+  },
+
+  onTap() {
+    if (demo) { this.stopDemo(); this.render(); return }
+    if (live.msg && live.msg.k !== 0 && !live.lost) return
+    this.startDemo()
+  },
+
+  startDemo() {
+    demo = hud.createState()
+    demoIdx = 0
+    demoQ = 0
+    buzz.cancel()
+    const step = () => {
+      demoQ++
+      const r = hud.accept(demo, hud.parsePayload(hud.demoMessage(demoIdx, demoQ)), Date.now())
+      this.applyVibe(r)
+      demoIdx++
+      this.render()
+    }
+    step()
+    demoTimer = setInterval(step, cfg.DEMO_STEP_MS)
+  },
+
+  stopDemo() {
+    if (demoTimer) { clearInterval(demoTimer); demoTimer = null }
+    if (demo) { demo = null; if (buzz) buzz.cancel() }
+  }
+}
+</script>
