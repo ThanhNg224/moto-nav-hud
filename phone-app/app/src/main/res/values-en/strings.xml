@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_logo_desc">MotoNav logo</string>
+    <string name="ui_header_subtitle">Directions on Watch S5 · v%1$s</string>
+
+    <string name="ui_badge_running">RUNNING</string>
+    <string name="ui_badge_auto">AUTO-START</string>
+    <string name="ui_badge_stopped">STOPPED</string>
+    <string name="ui_badge_missing_perm">PERMISSION NEEDED</string>
+    <string name="ui_badge_connecting">CONNECTING TO MAPS</string>
+    <string name="ui_badge_bt_off">BLUETOOTH OFF</string>
+
+    <string name="ui_demo_prefix">"[Demo] "</string>
+    <string name="ui_hero_ready">Ready</string>
+    <string name="ui_hero_ready_title">MotoNav will try to start when Google Maps begins navigating</string>
+    <string name="ui_hero_ready_meta">If Android blocks it, tap Start or use the MotoNav tile in Quick Settings</string>
+    <string name="ui_hero_stopped">Stopped</string>
+    <string name="ui_hero_disabled_title">Tap Start to connect to Watch S5</string>
+    <string name="ui_hero_disabled_meta">Auto-start is off — turn it on in Settings</string>
+    <string name="ui_hero_suppressed_title">Auto-start is paused for this trip</string>
+    <string name="ui_hero_suppressed_meta">Tap Start to turn it on now</string>
+    <string name="ui_hero_bt_off_title">Bluetooth is off</string>
+    <string name="ui_hero_bt_off_meta">Turn Bluetooth on, then tap Start</string>
+    <string name="ui_hero_missing">Permission needed</string>
+    <string name="ui_hero_no_bt_title">Bluetooth permission is missing</string>
+    <string name="ui_hero_no_bt_meta">Grant it in the card below</string>
+    <string name="ui_hero_no_listener_title">Can\'t read Google Maps notifications yet</string>
+    <string name="ui_hero_no_listener_meta">Turn on access in the card below</string>
+    <string name="ui_hero_connecting">Connecting</string>
+    <string name="ui_hero_connecting_title">Waiting for Android to connect the notification service</string>
+    <string name="ui_hero_connecting_meta">If this lasts, turn notification access off and on, or tap Start</string>
+    <string name="ui_hero_wait_maps">Waiting for Maps</string>
+    <string name="ui_hero_wait_maps_title">Open Google Maps in motorcycle mode</string>
+    <string name="ui_hero_idle_countdown">Auto-stop in %1$dm %2$ds</string>
+    <string name="ui_hero_idle_holding">Keeping the watch connection</string>
+    <string name="ui_hero_rerouting">Rerouting</string>
+    <string name="ui_hero_rerouting_title">%1$sFinding a new route</string>
+    <string name="ui_hero_rerouting_meta">Waiting for Google Maps</string>
+    <string name="ui_hero_arrived">Arrived</string>
+    <string name="ui_hero_arrived_title">%1$sTrip complete</string>
+    <string name="ui_hero_arrived_meta">You can stop MotoNav</string>
+    <string name="ui_hero_navigating_meta">Navigating</string>
+    <string name="ui_turn_exit">%1$s · Exit %2$d</string>
+    <string name="ui_dist_m">%1$d m</string>
+    <string name="ui_dist_km">%1$.1f km</string>
+    <string name="ui_dist_unknown">–</string>
+
+    <string name="ui_man_unknown">Navigating</string>
+    <string name="ui_man_straight">Go straight</string>
+    <string name="ui_man_slight_left">Slight left</string>
+    <string name="ui_man_left">Turn left</string>
+    <string name="ui_man_sharp_left">Sharp left</string>
+    <string name="ui_man_slight_right">Slight right</string>
+    <string name="ui_man_right">Turn right</string>
+    <string name="ui_man_sharp_right">Sharp right</string>
+    <string name="ui_man_uturn">U-turn</string>
+    <string name="ui_man_roundabout">Roundabout</string>
+    <string name="ui_man_keep_left">Keep left</string>
+    <string name="ui_man_keep_right">Keep right</string>
+    <string name="ui_man_arrive">Destination</string>
+    <string name="ui_man_depart">Depart</string>
+
+    <string name="ui_setup_bt_why">MotoNav needs Bluetooth (nearby devices) permission to advertise and send directions to Watch S5.</string>
+    <string name="ui_setup_bt_btn">Grant Bluetooth permission</string>
+    <string name="ui_setup_listener_why">MotoNav needs notification access to read directions from Google Maps. In Settings, turn on MotoNav under \"Notification access\".</string>
+    <string name="ui_setup_listener_btn">Open notification access settings</string>
+    <string name="ui_open_app_settings">Open app settings to grant permission</string>
+
+    <string name="ui_warn_mtu">Note: the Bluetooth link can\'t carry full directions right now, so the watch may not receive them. Disconnect and reconnect the watch.</string>
+
+    <string name="ui_card_watch">WATCH S5</string>
+    <string name="ui_card_maps">GOOGLE MAPS</string>
+    <string name="ui_watch_no_permission">Permission needed</string>
+    <string name="ui_watch_no_permission_sub">Bluetooth permission required</string>
+    <string name="ui_watch_delivery">Delivery problem</string>
+    <string name="ui_watch_delivery_sub">The watch is connected but isn\'t getting full directions. Try reconnecting it.</string>
+    <string name="ui_watch_connected">Connected</string>
+    <plurals name="ui_watch_connected_sub">
+        <item quantity="one">%1$d device receiving directions</item>
+        <item quantity="other">%1$d devices receiving directions</item>
+    </plurals>
+    <string name="ui_watch_off">Off</string>
+    <string name="ui_watch_off_sub">Tap Start to connect</string>
+    <string name="ui_watch_starting">Starting</string>
+    <string name="ui_watch_starting_sub">Turning on Bluetooth</string>
+    <string name="ui_watch_waiting">Waiting for watch</string>
+    <string name="ui_watch_waiting_sub">Open the MotoNav app on Watch S5</string>
+    <string name="ui_watch_waiting_saver_sub">Battery saver mode: connecting may be slower</string>
+    <string name="ui_watch_bt_off">Bluetooth off</string>
+    <string name="ui_watch_bt_off_sub">Turn Bluetooth on to continue</string>
+    <string name="ui_watch_retrying">Retrying</string>
+    <string name="ui_watch_retrying_sub">Bluetooth hit an error and is retrying</string>
+    <string name="ui_watch_error">Bluetooth error</string>
+    <string name="ui_watch_error_sub">Stopped after several attempts. Tap Start to retry.</string>
+    <string name="ui_watch_auto_stopped">Stopped automatically</string>
+    <string name="ui_watch_auto_stopped_sub">Stopped after a while idle to save battery</string>
+
+    <string name="ui_maps_no_listener">No access</string>
+    <string name="ui_maps_no_listener_sub">Turn on notification access</string>
+    <string name="ui_maps_connecting">Connecting</string>
+    <string name="ui_maps_connecting_sub">Waiting for Android to connect the notification service</string>
+    <string name="ui_maps_idle">Ready</string>
+    <string name="ui_maps_idle_sub">Not navigating — open Google Maps to start</string>
+    <string name="ui_maps_navigating">Navigating</string>
+    <string name="ui_maps_navigating_sub">Reading directions from Maps</string>
+    <string name="ui_maps_rerouting">Rerouting</string>
+    <string name="ui_maps_rerouting_sub">Waiting for Google Maps to find a new route</string>
+    <string name="ui_maps_arrived">Arrived</string>
+    <string name="ui_maps_arrived_sub">Trip complete</string>
+    <string name="ui_maps_demo">Demo running</string>
+    <string name="ui_maps_demo_sub">Simulated turns, no Maps data</string>
+
+    <string name="ui_settings">Settings</string>
+    <string name="ui_settings_open">Settings ▾</string>
+    <string name="ui_settings_closed">Settings ▸</string>
+    <string name="ui_state_expanded">Expanded</string>
+    <string name="ui_state_collapsed">Collapsed</string>
+    <string name="ui_section_auto">AUTOMATION</string>
+    <string name="ui_auto_start">Auto-start when Google Maps begins navigating</string>
+    <string name="ui_auto_start_desc">MotoNav tries to connect the watch when Google Maps begins navigating. Needs notification access and Bluetooth; Android may block background auto-start.</string>
+    <string name="ui_section_auto_stop">AUTO-STOP WHEN IDLE (SAVES BATTERY)</string>
+    <string name="ui_chip_off">Off</string>
+    <string name="ui_chip_minutes">%1$dm</string>
+    <plurals name="ui_chip_minutes_desc">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <string name="ui_state_selected">Selected</string>
+    <string name="ui_state_not_selected">Not selected</string>
+
+    <string name="ui_section_perms">PERMISSIONS &amp; BACKGROUND</string>
+    <string name="ui_perm_bt_btn">Grant Bluetooth permission</string>
+    <string name="ui_perm_bt_granted">Bluetooth permission: granted</string>
+    <string name="ui_perm_bt_why">Required: to advertise over Bluetooth and send directions to the watch.</string>
+    <string name="ui_perm_bt_denied_toast">Bluetooth permission was denied. Grant it in app settings.</string>
+    <string name="ui_perm_notif_btn">Allow MotoNav notifications</string>
+    <string name="ui_perm_notif_granted">MotoNav notifications: allowed</string>
+    <string name="ui_perm_notif_why">Optional: shows MotoNav\'s notification while it runs in the background so you can see and stop it quickly. Navigation works without it.</string>
+    <string name="ui_perm_notif_app_blocked">MotoNav notifications are turned off – open notification settings</string>
+    <string name="ui_perm_notif_channel_blocked">The MotoNav notification channel is turned off – open channel settings</string>
+    <string name="ui_perm_listener_btn">Open notification access settings</string>
+    <string name="ui_perm_listener_why">Required: to read directions from Google Maps notifications. In Settings, look for \"Notification access\".</string>
+    <string name="ui_perm_battery_btn">Allow background running (disable battery optimization)</string>
+    <string name="ui_perm_battery_why">Optional: keeps Android from stopping MotoNav during long background use.</string>
+    <string name="ui_perm_battery_fallback">Open Settings &gt; Battery &gt; MotoNav</string>
+
+    <string name="ui_section_debug">ADVANCED &amp; DEBUG</string>
+    <string name="ui_capture">Record Maps notification samples (debug)</string>
+    <string name="ui_capture_clear">Delete saved samples</string>
+    <string name="ui_capture_clear_count">Delete saved samples (%1$d)</string>
+    <plurals name="ui_capture_cleared">
+        <item quantity="one">Deleted %1$d sample file</item>
+        <item quantity="other">Deleted %1$d sample files</item>
+    </plurals>
+
+    <string name="ui_section_token">PAIRING CODE (CUSTOM WATCH BUILDS ONLY)</string>
+    <string name="ui_token_desc">Change this only if you built the Watch app with a different code. It must match the code in the watch, or the watch will not receive directions. The stock Watch app uses the default code.</string>
+    <string name="ui_token_hint">Watch pairing code (1–8 letters/digits)</string>
+    <string name="ui_token_save">Save code</string>
+    <string name="ui_token_reset">Reset to default</string>
+    <string name="ui_token_saved">Pairing code saved</string>
+    <string name="ui_token_invalid">Invalid code (1–8 letters/digits)</string>
+    <string name="ui_token_reset_done">Default code restored</string>
+
+    <string name="ui_section_payload">LAST PACKET</string>
+    <string name="ui_payload_empty">(no data yet)</string>
+    <string name="ui_section_diag">DIAGNOSTICS</string>
+    <string name="ui_tip_tile">Tip: add the \"MotoNav\" tile to Quick Settings to toggle it with one tap before you ride.</string>
+
+    <string name="ui_demo_start">Demo</string>
+    <string name="ui_demo_stop">Stop demo</string>
+    <string name="ui_demo_blocked">Demo can\'t start while Google Maps is navigating. End the trip in Maps first.</string>
+    <string name="ui_start">Start</string>
+    <string name="ui_stop">Stop</string>
+</resources>

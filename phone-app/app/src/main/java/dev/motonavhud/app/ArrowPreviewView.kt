@@ -57,13 +57,13 @@ class ArrowPreviewView(ctx: Context) : View(ctx) {
         canvas.drawArc(arcRect, 135f, 270f, false, trackPaint)
 
         val (ringColor, sweep) = when (stateK) {
-            NavState.K_ARRIVED -> Color.parseColor("#34D399") to 270f
-            NavState.K_REROUTING -> Color.parseColor("#FBBF24") to 180f
+            NavState.K_ARRIVED -> Palette.DARK.ok to 270f
+            NavState.K_REROUTING -> Palette.DARK.caution to 180f
             NavState.K_NAVIGATING -> {
                 val c = when {
-                    distanceM in 0..50 -> Color.parseColor("#FF4D2D")
-                    distanceM in 51..200 -> Color.parseColor("#FFD000")
-                    else -> Color.parseColor("#2DD4BF")
+                    distanceM in 0..50 -> Palette.DARK.orange
+                    distanceM in 51..200 -> Palette.DARK.caution
+                    else -> Palette.DARK.teal
                 }
                 val pct = if (distanceM >= 0) (1f - (distanceM / 500f)).coerceIn(0.08f, 1f) else 0.25f
                 c to (270f * pct)
@@ -143,8 +143,13 @@ class ArrowPreviewView(ctx: Context) : View(ctx) {
                 canvas.drawCircle(cx, cy + s * 0.55f, s * 0.2f, fillPaint)
                 drawArrow(canvas, cx, cy + s * 0.22f, cx, cy - s * 0.6f, s * 0.38f)
             }
-            else -> {
+            maneuver == NavState.M_STRAIGHT -> {
                 drawArrow(canvas, cx, cy + s * 0.65f, cx, cy - s * 0.55f, s * 0.4f)
+            }
+            else -> {
+                // M_UNKNOWN: không biết hướng, vẽ chấm mờ trung tính (không ngụ ý hướng đi).
+                fillPaint.color = Color.parseColor("#475569")
+                canvas.drawCircle(cx, cy, s * 0.22f, fillPaint)
             }
         }
     }

@@ -31,10 +31,10 @@
     <!-- Nút nhanh ở màn chờ (chữ thuần Việt rõ nét, không dùng ký tự đặc biệt dễ vỡ font) -->
     <div class="wait-actions" if="{{showWaitActions}}">
       <div class="wbtn wbtn-demo" onclick="onTapDemo">
-        <text class="wbtn-txt">Chạy thử</text>
+        <text class="wbtn-txt">{{demoBtnWait}}</text>
       </div>
       <div class="wbtn wbtn-cfg" onclick="onOpenMenu">
-        <text class="wbtn-txt">Cài đặt</text>
+        <text class="wbtn-txt">{{settingsLabel}}</text>
       </div>
     </div>
 
@@ -50,7 +50,7 @@
     <div class="menu" if="{{menuOpen}}">
       <text class="menu-title">MotoNav</text>
       <div class="mbtn mbtn-accent" onclick="onCyclePreset">
-        <text class="mbtn-txt">Rung: {{presetLabel}}</text>
+        <text class="mbtn-txt">{{presetLabel}}</text>
       </div>
       <div class="mbtn" onclick="onCycleBright">
         <text class="mbtn-txt">{{brightLabel}}</text>
@@ -59,13 +59,16 @@
         <text class="mbtn-txt">{{demoBtnLabel}}</text>
       </div>
       <div class="mbtn mbtn-close" onclick="onCloseMenu">
-        <text class="mbtn-txt">Đóng</text>
+        <text class="mbtn-txt">{{closeLabel}}</text>
       </div>
     </div>
   </div>
 </template>
 
 <style>
+/* BẢNG MÀU (.ux không có biến CSS: dùng đúng các mã này, test chặn mã gần trùng cũ)
+   nền #000000 | teal/đang hoạt động #2dd4bf | ổn/đã kết nối/đã đến #34d399 | thận trọng/xa/đang kết nối #ffd000
+   sắp rẽ/cam #ff5a36 | nguy hiểm/mất dữ liệu #ef4444 | chữ phụ #94a3b8 (>= 4.5:1 trên nền đen) */
 /* Màn tròn 480x480 AMOLED (tâm 240,240; bán kính 240). Nền đen tuyệt đối tiết kiệm pin & giảm chói đêm */
 .page {
   width: 480px;
@@ -91,7 +94,8 @@
 .ring-idle { color: #334155; }
 .ring-nav { color: #2dd4bf; }
 .ring-far { color: #ffd000; }
-.ring-near { color: #ff4d2d; }
+.ring-near { color: #ff5a36; }
+.ring-recalc { color: #ffd000; }
 .ring-arrived { color: #34d399; }
 .ring-stale { color: #ef4444; }
 
@@ -112,7 +116,7 @@
 }
 .dial-near {
   background-color: #2c100a;
-  border: 3px solid #ff4d2d;
+  border: 3px solid #ff5a36;
 }
 /* Ảnh PNG 108x108 hiển thị đúng tỷ lệ 1:1, đồng tâm tuyệt đối với .dial tại (240, 98) */
 .arrow {
@@ -222,7 +226,7 @@
 }
 .banner-center { top: 180px; }
 .banner-wait { color: #ffffff; }
-.banner-stale { color: #ff5a36; }
+.banner-stale { color: #ef4444; }
 .banner-arrived { color: #34d399; }
 
 .hint {
@@ -230,11 +234,13 @@
   left: 64px;
   top: 202px;
   width: 352px;
-  height: 42px;
+  height: 60px;
   font-size: 22px;
   font-weight: bold;
   color: #94a3b8;
   text-align: center;
+  lines: 2;
+  text-overflow: ellipsis;
 }
 .hint-center { top: 256px; }
 
@@ -282,10 +288,11 @@
 .st1 { top: 358px; }
 .st-row {
   position: absolute;
-  left: 110px;
-  top: 388px;
-  width: 260px;
-  height: 38px;
+  left: 95px;
+  top: 374px;
+  width: 290px;
+  height: 56px;
+  padding-top: 10px;
   flex-direction: row;
   justify-content: center;
   align-items: center;
@@ -299,28 +306,41 @@
 }
 .dot-ok { background-color: #34d399; }
 .dot-warn { background-color: #ffd000; }
-.dot-err { background-color: #ff6b6b; }
+/* Chỉ chấm trạng thái nhấp nháy (opacity, 1.5 s); bỏ class = chấm đứng yên (dự phòng giảm chuyển động) */
+.dot-pulse {
+  animation-name: dotPulse;
+  animation-duration: 1500ms;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+@keyframes dotPulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+.dot-err { background-color: #ef4444; }
 .st-txt {
+  width: 262px;
   height: 32px;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: bold;
-  color: #6ee787;
+  color: #34d399;
   text-align: center;
   lines: 1;
   text-overflow: ellipsis;
 }
-.st-ok { color: #6ee787; }
+.st-ok { color: #34d399; }
 .st-warn { color: #ffd000; }
-.st-err { color: #ff6b6b; }
+.st-err { color: #ef4444; }
 .st3 {
   position: absolute;
-  left: 130px;
+  left: 140px;
   top: 426px;
-  width: 220px;
+  width: 200px;
   height: 28px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: bold;
-  color: #9be59b;
+  color: #ffd000;
   text-align: center;
   lines: 1;
   text-overflow: ellipsis;
@@ -359,8 +379,8 @@
 .mbtn-accent { background-color: #0369a1; }
 .mbtn-close {
   width: 170px;
-  height: 52px;
-  border-radius: 26px;
+  height: 56px;
+  border-radius: 28px;
   background-color: #334155;
   margin-bottom: 0px;
 }
@@ -371,6 +391,8 @@
   font-weight: bold;
   color: #f8fafc;
   text-align: center;
+  lines: 1;
+  text-overflow: ellipsis;
 }
 </style>
 
@@ -386,15 +408,11 @@ const ic = require('../../common/transport-interconnect.js')
 const ble = require('../../common/transport-ble.js')
 const shortSt = require('../../common/status.js')
 const L = require('../../common/log.js')
+const i18n = require('../../common/i18n.js')
 
 const KEY_PRESET = 'haptic_preset'
 const KEY_BRIGHT = 'bright_mode'
 const BRIGHT_ORDER = ['auto', 'day', 'night']
-const BRIGHT_LABELS = {
-  auto: 'Độ sáng: Tự động',
-  day: 'Độ sáng: Ban ngày',
-  night: 'Độ sáng: Ban đêm'
-}
 
 let live = hud.createState()   // trạng thái tin thật
 let demo = null                // trạng thái chạy thử cục bộ (tách khỏi live); null = không chạy
@@ -410,6 +428,11 @@ let statusA = ''
 let statusC = ''
 let extra = ''
 let diagC = ''
+let connPhase = 'SEARCHING'    // pha kết nối do transport báo (status.PHASE)
+let phoneDemo = false          // khung gần nhất do ĐT chạy thử (y=1)
+let preRide = false            // đang ở màn chờ (chưa có hướng dẫn)
+let keepOnFailed = false
+let routeActive = false        // đã có hướng dẫn kể từ lần chờ gần nhất (để phân biệt mất tin giữa tuyến)
 let tickN = 0
 let tickTimer = null
 let buzz = null
@@ -443,9 +466,9 @@ export default {
     exitBadge: '',
     distance: '',
     distClass: '',
-    banner: 'Chờ chỉ đường',
+    banner: '',
     bannerClass: 'banner-wait',
-    hint: 'Mở Google Maps trên ĐT',
+    hint: '',
     hintClass: '',
     showWaitActions: true,
     street: '',
@@ -456,14 +479,19 @@ export default {
     dotClass: 'dot-warn',
     status3: '',
     menuOpen: false,
-    presetLabel: 'Chuẩn (200/50m)',
-    brightLabel: 'Độ sáng: Tự động',
-    demoBtnLabel: 'Chạy thử'
+    presetLabel: '',
+    brightLabel: '',
+    demoBtnLabel: '',
+    demoBtnWait: '',
+    settingsLabel: '',
+    closeLabel: ''
   },
 
   onShow() {
     const my = ++pageGen
     visible = true
+    i18n.init()
+    keepOnFailed = false
     origMode = -1
     origBrightness = -1
     baselineModeDone = false
@@ -477,12 +505,12 @@ export default {
     try {
       brightness.setKeepScreenOn({
         keepScreenOn: true,
-        fail: (data, code) => { if (visible && my === pageGen) { extra = 'sáng lỗi ' + code; this.refreshStatus() } }
+        fail: (data, code) => { if (visible && my === pageGen) { extra = 'sáng lỗi ' + code; keepOnFailed = true; this.refreshStatus() } }
       })
-    } catch (e) { extra = 'sáng ' + e }
+    } catch (e) { extra = 'sáng ' + e; keepOnFailed = true }
     this.startAll()
   },
-  onHide() { visible = false; pageGen++; this.stopAll(true) },
+  onHide() { visible = false; pageGen++; this.stopAll(true); this.refreshStatus() },
   onDestroy() { visible = false; pageGen++; this.stopAll(true) },
 
   captureBrightnessBaseline(my) {
@@ -571,16 +599,19 @@ export default {
   startAll() {
     this.stopAll(false)
     live = hud.createState()
+    routeActive = false
     hud.applyPreset(live, presetKey)
     channel = ''
     statusA = ''
     statusC = ''
+    connPhase = 'SEARCHING'
     buzz = haptics.create(vibrator, (e) => { extra = e; this.refreshStatus() })
     const self = this
     const mk = (m, tag) => m.create({
       onMessage: (str) => self.onRaw(str, tag),
       onStatus: (s) => { if (tag === 'A') statusA = s; else statusC = s; self.refreshStatus() },
       onDiag: (d) => { diagC = d; self.refreshStatus() },
+      onPhase: (p) => { if (tag === 'C') { connPhase = p; self.refreshStatus() } },
       onLost: () => self.onLost(tag)
     })
     transports = cfg.ENABLE_INTERCONNECT ? [mk(ic, 'A'), mk(ble, 'C')] : [mk(ble, 'C')]
@@ -632,32 +663,46 @@ export default {
     channel = ''
     const v = hud.invalidate(live)
     L.log('lost', 'channel=' + tag, v ? 'pulse' : 'no-pulse')
-    if (!demo) { if (v) { buzz.cancel(); buzz.play(v) } else buzz.cancelTurn() }
+    if (!demo) { if (v) { this.dismissMenu(); buzz.cancel(); buzz.play(v) } else buzz.cancelTurn() }
     this.render()
   },
 
+  // Đóng lớp phủ Cài đặt trước khi rung/đổi hướng dẫn để không bao giờ rung khi mũi tên đang bị che
+  dismissMenu() { if (this.menuOpen) this.setMenu(false) },
+
   applyVibe(r) {
-    if (r.vibe) buzz.play(r.vibe)
+    if (r.vibe) { this.dismissMenu(); buzz.play(r.vibe) }
     else if (r.cancel) buzz.cancelTurn()
   },
 
   setField(k, v) { if (this[k] !== v) this[k] = v },
 
   syncMenuLabels() {
-    const p = hud.HAPTIC_PRESETS[presetKey] || hud.HAPTIC_PRESETS.std
-    this.setField('presetLabel', p.label)
-    this.setField('brightLabel', BRIGHT_LABELS[brightMode] || BRIGHT_LABELS.auto)
-    this.setField('demoBtnLabel', demo ? 'Dừng thử' : 'Chạy thử')
+    this.setField('presetLabel', i18n.t('menu.haptics', hud.presetLabel(presetKey)))
+    this.setField('brightLabel', i18n.t('bright.' + (BRIGHT_ORDER.indexOf(brightMode) >= 0 ? brightMode : 'auto')))
+    this.setField('demoBtnLabel', i18n.t(demo ? 'btn.demoStop' : 'btn.demo'))
+    this.setField('demoBtnWait', i18n.t('btn.demo'))
+    this.setField('settingsLabel', i18n.t('btn.settings'))
+    this.setField('closeLabel', i18n.t('btn.close'))
+  },
+
+  setMenu(open) {
+    this.setField('menuOpen', open)
+    this.refreshStatus()
   },
 
   refreshStatus() {
-    const tone = shortSt.statusTone(channel, statusC, !!demo)
-    this.setField('statusClass', 'st-' + tone)
-    this.setField('dotClass', 'dot-' + tone)
+    const eff = shortSt.effectivePhase(channel, connPhase)
+    const p = demo ? { text: i18n.t('st.demoLocal'), tone: 'warn', pulse: false }
+      : (phoneDemo ? { text: i18n.t('st.demoPhone'), tone: 'warn', pulse: false } : shortSt.present(eff))
+    // Chỉ nhấp nháy chấm khi đang hiển thị, không mở menu và đang ở pha chờ/kết nối
+    const pulse = p.pulse && visible && !this.menuOpen
+    this.setField('statusClass', 'st-' + p.tone)
+    this.setField('dotClass', 'dot-' + p.tone + (pulse ? ' dot-pulse' : ''))
     if (!cfg.DEBUG_STATUS) {
       this.setField('status1', '')
-      this.setField('status3', '')
-      this.setField('status2', demo ? 'CHẠY THỬ · chạm dừng' : shortSt.shortStatus(channel, statusC))
+      this.setField('status3', preRide && keepOnFailed ? i18n.t('hint.screenOff') : '')
+      this.setField('status2', p.text)
       return
     }
     this.setField('status1', (demo ? 'DEMO ' : '') + (channel === 'A' ? 'LIVE ' : '') + statusA + ' #' + tickN)
@@ -669,22 +714,32 @@ export default {
     const now = Date.now()
     const st = demo || live
     const ev = hud.tick(st, now)
-    if (ev === 'lost') { L.log('stale', 'pulse'); buzz.cancel(); buzz.play('lost') }
+    if (ev === 'lost') { L.log('stale', 'pulse'); this.dismissMenu(); buzz.cancel(); buzz.play('lost') }
     const v = hud.view(st, now)
+    // Chỉ hướng dẫn THẬT (không chạy thử cục bộ, không chạy thử từ ĐT) mới khóa menu khi mất tin giữa tuyến
+    routeActive = hud.nextRouteActive(routeActive, v.mode, !!demo, v.phoneDemo)
+    if (hud.shouldCloseMenu({
+      menuOpen: this.menuOpen, mode: v.mode, routeActive: routeActive, pulseActive: !!(buzz && buzz.active()), vibe: null
+    })) this.setMenu(false)
     if (v.mode !== lastMode) { L.log('mode', lastMode + '->' + v.mode); lastMode = v.mode }
 
     const ringCls = v.mode === 'stale' ? 'ring-stale'
       : (v.mode === 'arrived' ? 'ring-arrived'
-        : (v.mode === 'nav' ? (v.urgency === 'near' ? 'ring-near' : (v.urgency === 'far' ? 'ring-far' : 'ring-nav')) : 'ring-idle'))
+        : (v.mode === 'recalc' ? 'ring-recalc'
+          : (v.mode === 'nav' ? (v.urgency === 'near' ? 'ring-near' : (v.urgency === 'far' ? 'ring-far' : 'ring-nav')) : 'ring-idle')))
 
     const isWait = !demo && v.mode === 'waiting' && !v.distance && !v.street
+    const pre = isWait ? shortSt.preRide(shortSt.effectivePhase(channel, connPhase)) : null
     const bannerBase = v.mode === 'stale' ? 'banner-stale'
-      : (v.mode === 'arrived' ? 'banner-arrived' : (v.mode === 'waiting' ? 'banner-wait' : ''))
+      : (v.mode === 'arrived' ? 'banner-arrived'
+        : (v.mode === 'waiting' ? (pre && pre.bannerTone === 'err' ? 'banner-stale' : 'banner-wait') : ''))
     const bannerCls = isWait ? bannerBase : (bannerBase + ' banner-center').trim()
-    const subHint = isWait ? 'Mở Google Maps trên ĐT'
-      : (v.mode === 'stale' ? 'Kiểm tra điện thoại / Maps'
-        : (v.mode === 'arrived' ? 'Đã đến điểm đến'
-          : (v.mode === 'recalc' ? 'Đang tìm tuyến đường mới...' : '')))
+    const subHint = isWait ? pre.hint
+      : (v.mode === 'stale' ? i18n.t('hint.stale')
+        : (v.mode === 'arrived' ? i18n.t('hint.arrived')
+          : (v.mode === 'recalc' ? i18n.t('hint.recalc') : '')))
+    phoneDemo = !demo && v.phoneDemo
+    preRide = isWait
 
     this.setField('arcPercent', v.arcPercent)
     this.setField('ringClass', ringCls)
@@ -693,14 +748,14 @@ export default {
     this.setField('exitBadge', v.exitBadge || '')
     this.setField('distance', v.distance)
     this.setField('distClass', v.urgency === 'near' ? 'dist-near' : (v.urgency === 'far' ? 'dist-far' : ''))
-    this.setField('banner', v.banner)
+    this.setField('banner', isWait ? pre.banner : v.banner)
     this.setField('bannerClass', bannerCls)
     this.setField('hint', subHint)
     this.setField('hintClass', isWait ? '' : 'hint-center')
     this.setField('showWaitActions', isWait)
     // Khi đã có huy hiệu LỐI X riêng, dòng street hiện tên đường gọn hơn
     this.setField('street', v.exitBadge ? v.road : v.street)
-    const bot = v.mode === 'nav' ? (showClock ? 'Giờ ' + clockStr() : v.bottom) : ''
+    const bot = v.mode === 'nav' ? (showClock ? i18n.t('clock', clockStr()) : v.bottom) : ''
     this.setField('bottomText', bot)
     this.syncRenderTimer(!!demo || v.mode !== 'waiting')
     this.refreshStatus()
@@ -708,8 +763,8 @@ export default {
 
   onSwipe(e) {
     if (!e) return
-    if (e.direction === 'up') { this.setField('menuOpen', true); this.syncMenuLabels() }
-    else if (e.direction === 'down' && this.menuOpen) { this.setField('menuOpen', false) }
+    if (e.direction === 'up') this.tryOpenMenu()
+    else if (e.direction === 'down' && this.menuOpen) { this.setMenu(false) }
   },
 
   onToggleClock() {
@@ -719,8 +774,7 @@ export default {
 
   onStatusTap() {
     if (demo) { this.stopDemo(); this.render(); return }
-    this.setField('menuOpen', true)
-    this.syncMenuLabels()
+    this.tryOpenMenu()
   },
 
   onTapDemo() {
@@ -728,13 +782,17 @@ export default {
     this.startDemo()
   },
 
-  onOpenMenu() {
-    this.setField('menuOpen', true)
+  onOpenMenu() { this.tryOpenMenu() },
+
+  // Mọi đường vào menu đều qua đây: không mở khi có hướng dẫn trực tiếp / mất tin giữa tuyến / đang rung
+  tryOpenMenu() {
+    if (!hud.canOpenMenu({ mode: lastMode, routeActive: routeActive, pulseActive: !!(buzz && buzz.active()) })) return
+    this.setMenu(true)
     this.syncMenuLabels()
   },
 
   onCloseMenu() {
-    this.setField('menuOpen', false)
+    this.setMenu(false)
   },
 
   onCyclePreset() {
@@ -761,12 +819,14 @@ export default {
   onToggleDemoFromMenu() {
     if (demo) this.stopDemo()
     else this.startDemo()
-    this.setField('menuOpen', false)
+    this.setMenu(false)
     this.syncMenuLabels()
     this.render()
   },
 
   startDemo() {
+    if (hud.hasFreshGuidance(live, Date.now())) return   // không để chạy thử đè hướng dẫn thật
+    this.dismissMenu()
     demo = hud.createState()
     hud.applyPreset(demo, presetKey)
     demoStepIdx = 0

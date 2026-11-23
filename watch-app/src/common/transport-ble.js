@@ -1,9 +1,10 @@
 // Kênh C: BLE central (watch scan/connect tới Android peripheral). Theo docs system.bluetooth.ble.
 // Giao diện chung: create(cb[, api]) -> { start(), stop() }
-// cb = { onMessage(str) -> bool hợp lệ, onStatus(str), onLost() }
+// cb = { onMessage(str) -> bool hợp lệ, onStatus(str), onLost(), onPhase?(phase, errCode) }  (phase: status.js PHASE)
 var cfg = require('./config.js')
 var hud = require('./hud-logic.js')
 var L = require('./log.js')
+var P = require('./status.js')
 
 var SERVICE = '6e4f0001-b5a3-f393-e0a9-e50e24dcca9e'
 var SKIP_WAIT_MS = 1200
@@ -96,6 +97,18 @@ function create(cb, api) {
   var matched = 0
 
   function status(s) { try { cb.onStatus('C ' + s) } catch (e) {} }
+  var pubPhase = ''
+  var pubCode = ''
+  function setPhase(p, errCode) {
+    var c = errCode == null ? '' : String(errCode)
+    if (p === pubPhase && c === pubCode) return
+    pubPhase = p
+    pubCode = c
+    L.log('phase', p, c)
+    try { if (cb.onPhase) cb.onPhase(p, c) } catch (e) {}
+  }
+  // Phát lại sau thất bại: giữ nguyên pha lỗi/nối lại tới khi có tiến triển (thấy máy / có kết quả quét)
+  function sticky() { return pubPhase === P.PHASE.RETRYING || pubPhase === P.PHASE.ERROR || pubPhase === P.PHASE.BT_OFF }
   function scanText() {
     return 'quét V' + VARIANTS[curV].id + ' ' + seen + '/' + matched + ' t' + Math.floor((Date.now() - beginAt) / 1000) + ' r' + attempts
   }
@@ -181,7 +194,8 @@ function create(cb, api) {
     releaseDevice()
   }
 
-  function scheduleRetry(why) {
+  // kind: 'retry' (mặc định) | 'search' (chưa thấy máy) | 'error'; errCode 10001 luôn là BT_OFF
+  function scheduleRetry(why, kind, errCode) {
     closeAttempt()
     // Mọi thất bại trước frame đầu tiên: đẩy địa chỉ xuống CUỐI skip (LRU: đầu mảng = thử lâu nhất)
     if (!gotFrame && curAddr) {
@@ -197,6 +211,8 @@ function create(cb, api) {
     retry++
     lastWhy = why
     phase = ''
+    setPhase(String(errCode) === P.BT_OFF_CODE ? P.PHASE.BT_OFF
+      : (kind === 'search' ? P.PHASE.SEARCHING : (kind === 'error' ? P.PHASE.ERROR : P.PHASE.RETRYING)), errCode)
     L.log('retry', why, 'backoff=' + wait + 'ms n=' + retry)
     diag()
     status(why + ' thử lại ' + Math.round(wait / 1000) + 's')
@@ -204,10 +220,10 @@ function create(cb, api) {
     retryTimer = setTimeout(begin, wait)
   }
 
-  function arm(my, ms, why) {
+  function arm(my, ms, why, kind, errCode) {
     clearWatchdog()
     watchdog = setTimeout(guard(my, function () {
-      scheduleRetry(why)
+      scheduleRetry(why, kind, errCode)
     }), ms)
   }
 
@@ -240,6 +256,7 @@ function create(cb, api) {
       subId = sc.subscribeBLEDeviceFind({
         callback: sguard(function (results) {
           if (found || !results || !results.length) return
+          if (pubPhase === P.PHASE.BT_OFF) setPhase(P.PHASE.SEARCHING)
           L.count('scan.results', results.length)
           var fresh = null, again = null, againRank = Infinity
           for (var n = 0; n < results.length; n++) {
@@ -271,7 +288,7 @@ function create(cb, api) {
           var r = fresh || (held && Date.now() - scanAt >= SKIP_WAIT_MS ? held : null)
           if (r) choose(r)
         }),
-        fail: sguard(function (data, c) { scheduleRetry('sub ' + code(data, c)) })
+        fail: sguard(function (data, c) { scheduleRetry('sub ' + code(data, c), 'error', code(data, c)) })
       })
       // Mọi chiến lược đều bắt buộc khớp service UUID trong dữ liệu quảng bá
       matchInfo = ''
@@ -301,8 +318,8 @@ function create(cb, api) {
               if (nv >= 0) curV = nv
               else resetVariants()
             }
-            scheduleRetry('không thấy máy (' + seen + ' kq)')
-          } else scheduleRetry('chỉ thấy máy đã thử')
+            scheduleRetry('không thấy máy (' + seen + ' kq)', 'search')
+          } else scheduleRetry('chỉ thấy máy đã thử', 'search')
         }), cfg.BLE_FIRST_FRAME_MS)
         var id = VARIANTS[v].id
         var tok = ++scanTok
@@ -314,27 +331,33 @@ function create(cb, api) {
           vFailAt[id] = Date.now()
           L.log('scan fail', 'V' + id, why)
           diag()
+          // Bluetooth tắt không phụ thuộc biến thể quét: dừng thử biến thể khác, giữ nguyên nguyên nhân
+          if (why === P.BT_OFF_CODE) { resetVariants(); scheduleRetry('Bluetooth tắt', 'error', why); return }
           var nv = nextV(v)
-          if (nv < 0) { resetVariants(); scheduleRetry('scan hết biến thể'); return }
+          if (nv < 0) { resetVariants(); scheduleRetry('scan hết biến thể', 'error', why); return }
           launch(nv)
           if (my === gen) status(scanText())
         }
+        // quét khởi động được => Bluetooth đang bật: bỏ trạng thái BT_OFF cũ
+        o.success = sguard(function () { if (pubPhase === P.PHASE.BT_OFF) setPhase(P.PHASE.SEARCHING) })
         o.fail = sguard(function (data, c) { failed(code(data, c)) })
         try { sc.startBLEScan(o) } catch (e) { failed('ex') }
       }
       launch(curV)
       if (my !== gen) return   // mọi startBLEScan đều lỗi: scanner đã đóng, không báo quét/watchdog
       phase = 'scan'
+      if (!sticky()) setPhase(P.PHASE.SEARCHING)
       startTicker()
       status(scanText())
     } catch (e) {
-      scheduleRetry('scan ex ' + e)
+      scheduleRetry('scan ex ' + e, 'error')
     }
   }
 
   function connect(my, deviceId, addressType) {
     try {
       phase = ''
+      setPhase(P.PHASE.CONNECTING)
       status('thấy ' + String(deviceId).slice(-5) + '/' + String(addressType == null ? '?' : addressType).charAt(0))
       var dev = ble.createGattClientDevice(deviceId, addressType || 'UNKNOWN')
       device = dev
@@ -357,22 +380,22 @@ function create(cb, api) {
         } else if (state === 0) {
           // state 0 ban đầu/trung gian (chưa thấy 1/2, <3 s sau connect) bỏ qua, chờ tới timeout nối
           if (!sawUp && stAt < 3000) return
-          scheduleRetry('ngắt')
+          scheduleRetry('ngắt', 'retry')
         }
       })
-      arm(my, cfg.BLE_CONNECT_TIMEOUT_MS, 'nối quá lâu')
+      arm(my, cfg.BLE_CONNECT_TIMEOUT_MS, 'nối quá lâu', 'error', 'timeout')
       L.log('connect', deviceId)
       dev.connect({
         success: guard(my, function () { status('đang nối') }),
-        fail: guard(my, function (data, c) { scheduleRetry('conn ' + code(data, c)) })
+        fail: guard(my, function (data, c) { scheduleRetry('conn ' + code(data, c), 'error', code(data, c)) })
       })
     } catch (e) {
-      scheduleRetry('conn ex ' + e)
+      scheduleRetry('conn ex ' + e, 'error')
     }
   }
 
   function setup(my, dev) {
-    arm(my, cfg.BLE_CONNECT_TIMEOUT_MS, 'thiết lập quá lâu')
+    arm(my, cfg.BLE_CONNECT_TIMEOUT_MS, 'thiết lập quá lâu', 'error', 'timeout')
     var discovered = false
     function discover() {
       if (discovered) return
@@ -381,9 +404,9 @@ function create(cb, api) {
       try {
         dev.getServices({
           success: guard(my, subscribe),
-          fail: guard(my, function (data, c) { scheduleRetry('svc ' + code(data, c)) })
+          fail: guard(my, function (data, c) { scheduleRetry('svc ' + code(data, c), 'error', code(data, c)) })
         })
-      } catch (e) { scheduleRetry('svc ex ' + e) }
+      } catch (e) { scheduleRetry('svc ex ' + e, 'error') }
     }
     function subscribe(services) {
       var ch = null
@@ -392,7 +415,7 @@ function create(cb, api) {
         var cs = services[i].characteristics || []
         for (var j = 0; j < cs.length; j++) if (same(cs[j].characteristicUuid, NAV_CHAR)) { ch = cs[j]; break }
       }
-      if (!ch) { scheduleRetry('thiếu char'); return }
+      if (!ch) { scheduleRetry('thiếu char', 'error'); return }
       L.log('setup', 'notify enable')
       dev.onBLECharacteristicChange = guard(my, function (c) {
         if (!c || !same(c.characteristicUuid, NAV_CHAR)) return
@@ -403,20 +426,23 @@ function create(cb, api) {
         L.count(ok ? 'rx.ok' : 'rx.drop')
         if (!ok) return
         if (!gotFrame) { gotFrame = true; retry = 0; skip = []; triedV = {}; L.log('first frame', curAddr); status('nối') }
-        arm(my, cfg.BLE_FIRST_FRAME_MS, 'BLE im lặng')
+        setPhase(P.PHASE.CONNECTED_IDLE)
+        arm(my, cfg.BLE_FIRST_FRAME_MS, 'BLE im lặng', 'retry')
       })
       dev.setNotifyCharacteristicChanged({
         characteristic: ch,
         enable: true,
         success: guard(my, function () {
           if (gotFrame) return
+          setPhase(P.PHASE.AWAIT_FRAME)
           status('chờ tin')
-          arm(my, cfg.BLE_FIRST_FRAME_MS, 'Không có dữ liệu BLE (MTU?)')
+          arm(my, cfg.BLE_FIRST_FRAME_MS, 'Không có dữ liệu BLE (MTU?)', 'retry')
         }),
-        fail: guard(my, function (data, c) { scheduleRetry('notify ' + code(data, c)) })
+        fail: guard(my, function (data, c) { scheduleRetry('notify ' + code(data, c), 'error', code(data, c)) })
       })
     }
     // MTU: callback chỉ là xác nhận, không mang giá trị đàm phán. Dù thành công hay lỗi vẫn tiếp tục khám phá.
+    // Đã thử khám phá song song với MTU (0.4.1): không rút ngắn được ~4,1 s giữa nối và đăng ký, nên giữ tuần tự.
     try {
       dev.setBLEMtuSize({
         mtu: cfg.BLE_MTU,

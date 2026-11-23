@@ -27,7 +27,7 @@ import dev.motonavhud.core.Transport
 import java.util.UUID
 
 /**
- * Phone = BLE peripheral (docs/protocol.md v1.2, kênh C). NAV chỉ Notify (không Read). Mỗi peer có MTU riêng,
+ * Phone = BLE peripheral (docs/protocol.md v1.3, kênh C). NAV chỉ Notify (không Read). Mỗi peer có MTU riêng,
  * chỉ nhận notify sau khi ghi CCCD hợp lệ; toàn server chỉ một notify đang bay, mỗi peer giữ duy nhất
  * "người dựng payload" mới nhất và payload được dựng LÚC GỬI THẬT (tuổi `a` luôn mới).
  * Mọi trạng thái nằm dưới [lock]; callback của phiên server đã đóng (generation cũ) bị bỏ qua.
@@ -44,6 +44,10 @@ class BlePeripheralServer(
     private class Peer(val device: BluetoothDevice) {
         var mtu = 23
         var subscribed = false
+        val connectedAt = SystemClock.elapsedRealtime()
+        var subscribedAt = 0L
+        var firstNotified = false
+        var sentConfirmed = false
         var pending: ((Int) -> ByteArray?)? = null
         val limit get() = minOf(PayloadBuilder.MAX_BYTES, mtu - 3)
     }
@@ -57,12 +61,14 @@ class BlePeripheralServer(
     private var advertiser: BluetoothLeAdvertiser? = null
     private var advCallback: AdvertiseCallback? = null
     private var advertising = false
-    private var advLowPower = false
     private var advStartedAt = 0L
     private var includeName = true
     private var lastBuild: ((Int) -> ByteArray?)? = null
     private var inFlight: String? = null
     private var inFlightSince = 0L
+    private var inFlightId = 0L // id tăng dần của lần gửi đang giữ slot
+    private var sendSeq = 0L
+    private var inFlightOrphaned = false // peer của lần gửi đang bay đã ngắt/hủy subscribe; slot vẫn giữ tới khi hết hạn
     private var rr = 0
     private val warnPeers = HashMap<String, Int>() // peer -> giới hạn byte không đủ cho lõi payload
 
@@ -76,10 +82,32 @@ class BlePeripheralServer(
         NavBus.bleStatus = text
     }
 
+    /** Bỏ mọi khung đang xếp hàng và snapshot subscribe đã lưu (đổi nguồn demo/live). Khung đang bay không thu hồi được. */
+    fun invalidatePending() {
+        synchronized(lock) {
+            lastBuild = null
+            for (peer in peers.values) peer.pending = null
+        }
+    }
+
+    private fun markNotifyError(detail: String) {
+        NavBus.deliveryError = true
+        NavBus.setBle(BleState.NOTIFY_ERROR, "notify lỗi: $detail", detail)
+    }
+
+    private fun setState(gen: Int, state: BleState, text: String, detail: String = "") {
+        if (gen != generation) return
+        if (NavBus.deliveryError && (state == BleState.CONNECTED || state == BleState.ADVERTISING)) {
+            NavBus.bleStatus = text // giữ NOTIFY_ERROR tới khi một lần gửi thành công hoặc phiên/peer kết thúc
+            return
+        }
+        NavBus.setBle(state, text, detail)
+    }
+
     /** Lỗi cuối cùng của phiên [gen]: đóng phiên (callback muộn bị bỏ qua) và báo lên bên gọi. Gọi dưới [lock]. */
     private fun fail(gen: Int, reason: String) {
         if (gen != generation) return
-        NavLog.i("ble fail reason=$reason")
+        NavBus.logEvent("ble_fail reason=${NavBus.tok(reason)}")
         stopLocked()
         NavBus.bleStatus = reason
         NavBus.subscribers = 0
@@ -89,6 +117,7 @@ class BlePeripheralServer(
     private fun updateWarning() {
         NavBus.warning = if (warnPeers.isEmpty()) "" else
             "Payload không vừa MTU của đồng hồ (cho phép ${warnPeers.values.min()} byte): không gửi. Tăng MTU phía đồng hồ."
+        NavBus.warnCode = if (warnPeers.isEmpty()) WarnCode.NONE else WarnCode.MTU_TOO_SMALL
     }
 
     /** Trả null nếu chạy được, ngược lại là lý do (tiếng Việt). Gọi lại sau stop() để dựng lại server. */
@@ -119,9 +148,9 @@ class BlePeripheralServer(
             advertiser = adv
             includeName = true
             running = true
-            NavLog.i("gatt server open gen=$gen")
+            NavBus.logEvent("gatt_open gen=$gen")
             if (!server.addService(service)) {
-                NavLog.i("gatt addService rejected")
+                NavBus.logEvent("gatt_add_rejected gen=$gen")
                 stopLocked()
                 return "addService thất bại"
             }
@@ -138,7 +167,8 @@ class BlePeripheralServer(
         onChange()
     }
 
-    private fun stopAdvertisingLocked() {
+    private fun stopAdvertisingLocked(reason: String = "stop") {
+        if (advertising || advCallback != null) NavBus.logEvent("adv_stop reason=$reason")
         runCatching { advCallback?.let { advertiser?.stopAdvertising(it) } }
         advCallback = null
         advertising = false
@@ -148,10 +178,10 @@ class BlePeripheralServer(
     private fun stopLocked() {
         running = false
         generation++ // vô hiệu hóa callback muộn của phiên cũ
-        stopAdvertisingLocked()
+        stopAdvertisingLocked("session_stop")
+        NavBus.deliveryError = false
         runCatching { gatt?.close() }
         advertiser = null
-        advLowPower = false
         gatt = null
         characteristic = null
         peers.clear()
@@ -168,11 +198,20 @@ class BlePeripheralServer(
             if (!running) return
             lastBuild = build
             for (peer in peers.values) if (peer.subscribed) peer.pending = build
-            if (inFlight != null && SystemClock.elapsedRealtime() - inFlightSince > IN_FLIGHT_TIMEOUT_MS) {
-                NavLog.i("notify timeout")
-                // Không nhả slot khi chưa có xác nhận (callback muộn có thể nhả nhầm tin mới): đóng phiên và dựng lại.
-                fail(generation, "notify bị treo, dựng lại GATT")
-                return
+            val slotAddr = inFlight
+            if (slotAddr != null && SystemClock.elapsedRealtime() - inFlightSince > IN_FLIGHT_TIMEOUT_MS) {
+                val ms = SystemClock.elapsedRealtime() - inFlightSince
+                val gone = peers[slotAddr]?.subscribed != true
+                if (inFlightOrphaned || gone) {
+                    // Peer đã đi (hoặc đã đi rồi quay lại): chỉ nhả slot (không dựng lại GATT, không ble_failure). Không bao giờ có 2 notify cùng bay.
+                    NavBus.logEvent("notify_inflight_expired addr=${NavLog.addr(slotAddr)} id=$inFlightId ms=$ms peer_gone=$gone orphaned=$inFlightOrphaned")
+                    inFlight = null
+                } else {
+                    NavBus.logEvent("notify_inflight_timeout ms=$ms addr=${NavLog.addr(slotAddr)} id=$inFlightId")
+                    // Peer còn nối mà notify treo: không nhả slot khi chưa có xác nhận, đóng phiên và dựng lại.
+                    fail(generation, "notify bị treo, dựng lại GATT")
+                    return
+                }
             }
             pump()
         }
@@ -189,6 +228,7 @@ class BlePeripheralServer(
             peer.pending = null
             if (!peer.subscribed) continue
             val bytes = build(peer.limit)
+            if (bytes != null && bytes.isEmpty()) continue // khung của nguồn đã đổi (demo/live): bỏ, không cảnh báo MTU
             if (bytes == null) {
                 warnPeers[peer.device.address] = peer.limit
                 updateWarning()
@@ -197,11 +237,22 @@ class BlePeripheralServer(
             if (warnPeers.remove(peer.device.address) != null) updateWarning()
             if (notify(peer, bytes)) {
                 inFlight = peer.device.address
+                inFlightId = ++sendSeq
+                inFlightOrphaned = false
                 inFlightSince = SystemClock.elapsedRealtime()
+                if (!peer.firstNotified) {
+                    peer.firstNotified = true
+                    val addr = NavLog.addr(peer.device.address)
+                    val sub = if (peer.subscribedAt > 0L) peer.subscribedAt else inFlightSince
+                    NavBus.logEvent("first_notify_sent addr=$addr since_connect_ms=${inFlightSince - peer.connectedAt}")
+                    NavBus.logEvent(
+                        "connect_summary addr=$addr connect_to_subscribe_ms=${sub - peer.connectedAt} " +
+                            "subscribe_to_first_notify_ms=${inFlightSince - sub} svc_to_connect_ms=${peer.connectedAt - NavBus.serviceStartedAt}",
+                    )
+                }
                 rr = (rr + n + 1) % list.size
                 return
             }
-            NavLog.i("notify failed peer=${NavLog.addr(peer.device.address)}")
         }
     }
 
@@ -209,7 +260,7 @@ class BlePeripheralServer(
         val g = gatt ?: return false
         val ch = characteristic ?: return false
         return try {
-            if (Build.VERSION.SDK_INT >= 33) {
+            val ok = if (Build.VERSION.SDK_INT >= 33) {
                 g.notifyCharacteristicChanged(peer.device, ch, false, payload) == BluetoothStatusCodes.SUCCESS
             } else {
                 @Suppress("DEPRECATION")
@@ -217,48 +268,35 @@ class BlePeripheralServer(
                 @Suppress("DEPRECATION")
                 g.notifyCharacteristicChanged(peer.device, ch, false)
             }
+            if (!ok) {
+                NavBus.logEvent("notify_rejected addr=${NavLog.addr(peer.device.address)}")
+                markNotifyError("rejected")
+            }
+            ok
         } catch (e: Exception) {
-            NavBus.bleStatus = "notify lỗi: ${e.javaClass.simpleName}"
+            NavBus.logEvent("notify_rejected addr=${NavLog.addr(peer.device.address)} err=${e.javaClass.simpleName}")
+            markNotifyError(e.javaClass.simpleName)
             false
         }
     }
 
-    /** Hạ nhịp quảng bá xuống BALANCED sau 30 s chờ không có đồng hồ để tiết kiệm pin radio BLE. */
-    fun stepDownAdvertisingIfIdle(nowMs: Long) {
-        synchronized(lock) {
-            if (!running || !advertising || advLowPower) return
-            if (peers.values.any { it.subscribed }) return
-            if (advStartedAt > 0L && nowMs - advStartedAt >= FAST_ADV_WINDOW_MS) {
-                restartAdvertising(generation, lowPower = true)
-            }
-        }
-    }
-
-    /** Đẩy lại quảng bá tốc độ cao (LOW_LATENCY) khi vừa có chuyến đi mới mà đồng hồ chưa nối (kể cả khi bản tiết kiệm đang khởi động dở). */
-    fun boostAdvertisingIfWaiting() {
-        synchronized(lock) {
-            if (!running || !advLowPower || (!advertising && advCallback == null)) return
-            if (peers.values.any { it.subscribed }) return
-            restartAdvertising(generation, lowPower = false)
-        }
-    }
-
-    private fun startAdvertising(gen: Int, lowPower: Boolean = false) {
+    // Luôn quảng bá nhanh (LOW_LATENCY/HIGH) khi service chạy: đồng hồ mở muộn vẫn thấy ngay.
+    // Đánh đổi: tốn pin radio hơn khi chờ; service vẫn tự dừng sau số phút rảnh đã đặt.
+    private fun startAdvertising(gen: Int) {
         val adv = advertiser ?: return
         if (advertising || advCallback != null || gen != generation) return // đã quảng bá hoặc đang chờ kết quả
-        advLowPower = lowPower
         val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(if (lowPower) AdvertiseSettings.ADVERTISE_MODE_BALANCED else AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(if (lowPower) AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM else AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
             .setConnectable(true)
             .setTimeout(0)
             .build()
         // Gói chính: cờ (3) + UUID 128-bit (18) <= 31. Tên Bluetooth hệ thống (không đặt được tùy ý) chỉ ở scan response.
         val data = AdvertiseData.Builder().setIncludeDeviceName(false).addServiceUuid(ParcelUuid(SERVICE_UUID)).build()
         val scan = AdvertiseData.Builder().setIncludeDeviceName(includeName).build()
-        val cb = AdvCb(gen, lowPower)
+        val cb = AdvCb(gen)
         advCallback = cb
-        NavLog.i("adv start name=$includeName mode=${if (lowPower) "balanced" else "fast"}")
+        NavBus.logEvent("adv_start mode=fast tx=high name=$includeName")
         try {
             adv.startAdvertising(settings, data, scan, cb)
         } catch (e: Exception) {
@@ -267,22 +305,20 @@ class BlePeripheralServer(
         }
     }
 
-    private fun restartAdvertising(gen: Int, lowPower: Boolean = false) {
+    private fun restartAdvertising(gen: Int) {
         if (!running || gen != generation) return
-        NavLog.v("adv restart lowPower=$lowPower")
-        stopAdvertisingLocked()
-        startAdvertising(gen, lowPower)
+        stopAdvertisingLocked("restart")
+        startAdvertising(gen)
     }
 
-    private inner class AdvCb(private val gen: Int, private val lowPower: Boolean) : AdvertiseCallback() {
+    private inner class AdvCb(private val gen: Int) : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             synchronized(lock) {
                 if (gen != generation || this !== advCallback) return
                 advertising = true
                 advStartedAt = SystemClock.elapsedRealtime()
-                NavLog.i("adv started mode=${if (lowPower) "balanced" else "fast"}")
-                val modeTxt = if (lowPower) "chờ đồng hồ (tiết kiệm)" else "đang tìm đồng hồ"
-                setStatus(gen, modeTxt + if (includeName) "" else " (không kèm tên)")
+                NavBus.logEvent("adv_started mode=fast")
+                setState(gen, BleState.ADVERTISING, "đang tìm đồng hồ" + if (includeName) "" else " (không kèm tên)")
             }
             onChange()
         }
@@ -290,7 +326,7 @@ class BlePeripheralServer(
         override fun onStartFailure(errorCode: Int) {
             synchronized(lock) {
                 if (gen != generation || this !== advCallback) return
-                NavLog.i("adv failed code=$errorCode")
+                NavBus.logEvent("adv_failed code=$errorCode")
                 if (errorCode == ADVERTISE_FAILED_ALREADY_STARTED) {
                     advertising = true
                     advStartedAt = SystemClock.elapsedRealtime()
@@ -300,7 +336,7 @@ class BlePeripheralServer(
                 if (errorCode == ADVERTISE_FAILED_DATA_TOO_LARGE && includeName) {
                     includeName = false // tên Bluetooth quá dài: thử lại không kèm tên
                     advCallback = null
-                    startAdvertising(gen, lowPower)
+                    startAdvertising(gen)
                     return
                 }
                 fail(gen, "quảng bá lỗi (mã $errorCode)")
@@ -326,13 +362,16 @@ class BlePeripheralServer(
         }
 
         private fun updateCount() {
-            if (gen == generation) NavBus.subscribers = peers.values.count { it.subscribed }
+            if (gen == generation) {
+                NavBus.subscribers = peers.values.count { it.subscribed }
+                if (NavBus.subscribers == 0) NavBus.deliveryError = false // peer bị ảnh hưởng đã hết
+            }
         }
 
         override fun onServiceAdded(status: Int, service: BluetoothGattService) {
             synchronized(lock) {
                 if (gen != generation || !running) return
-                NavLog.i("gatt service added status=$status")
+                NavBus.logEvent("gatt_service_added status=$status")
                 if (status == BluetoothGatt.GATT_SUCCESS) startAdvertising(gen) else fail(gen, "addService lỗi ($status)")
             }
             onChange()
@@ -341,17 +380,20 @@ class BlePeripheralServer(
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             synchronized(lock) {
                 if (gen != generation || !running) return
-                NavLog.i("peer ${if (newState == BluetoothProfile.STATE_CONNECTED) "connect" else "disconnect"} peer=${NavLog.addr(device.address)} status=$status")
+                val addr = NavLog.addr(device.address)
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    peers.getOrPut(device.address) { Peer(device) }
+                    NavBus.logEvent("peer_connect addr=$addr status=$status newState=$newState")
+                    peers[device.address] = Peer(device)
                     // Chỉ giữ quảng bá nếu chưa có đồng hồ nào subscribe
-                    if (peers.values.none { it.subscribed }) startAdvertising(gen, lowPower = advLowPower)
+                    if (peers.values.none { it.subscribed }) startAdvertising(gen)
                 } else {
+                    val connectedMs = peers[device.address]?.let { SystemClock.elapsedRealtime() - it.connectedAt } ?: -1L
+                    NavBus.logEvent("peer_disconnect addr=$addr status=$status newState=$newState connected_ms=$connectedMs")
+                    if (inFlight == device.address) inFlightOrphaned = true
                     peers.remove(device.address)
                     warnPeers.remove(device.address)
                     updateWarning()
-                    // inFlight giữ nguyên tới khi có onNotificationSent hoặc timeout (xem send()).
-                    if (peers.values.none { it.subscribed }) restartAdvertising(gen, lowPower = false)
+                    if (peers.values.none { it.subscribed }) restartAdvertising(gen)
                     pump()
                 }
                 updateCount()
@@ -362,7 +404,7 @@ class BlePeripheralServer(
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
             synchronized(lock) {
                 if (gen == generation) peers[device.address]?.mtu = mtu
-                NavLog.i("peer mtu=$mtu peer=${NavLog.addr(device.address)}")
+                NavBus.logEvent("mtu_changed addr=${NavLog.addr(device.address)} mtu=$mtu")
             }
         }
 
@@ -390,6 +432,7 @@ class BlePeripheralServer(
                 else -> BluetoothGatt.GATT_SUCCESS
             }
             if (code != BluetoothGatt.GATT_SUCCESS) {
+                NavBus.logEvent("cccd_reject addr=${NavLog.addr(device.address)} code=$code")
                 if (responseNeeded) respond(device, requestId, code, offset, null)
                 return
             }
@@ -401,7 +444,9 @@ class BlePeripheralServer(
                 val prevSubscribed = peer.subscribed
                 val prevPending = peer.pending
                 val prevWarn = warnPeers[device.address]
+                if (!enable && inFlight == device.address) inFlightOrphaned = true
                 peer.subscribed = enable
+                if (enable && !prevSubscribed) peer.subscribedAt = SystemClock.elapsedRealtime()
                 if (!enable && warnPeers.remove(device.address) != null) updateWarning()
                 peer.pending = if (enable) lastBuild else null // snapshot ngay khi subscribe
                 if (responseNeeded && !respond(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)) {
@@ -410,16 +455,16 @@ class BlePeripheralServer(
                     peer.pending = prevPending
                     if (prevWarn != null) { warnPeers[device.address] = prevWarn; updateWarning() }
                     updateCount()
-                    NavLog.i("cccd response failed, rolled back peer=${NavLog.addr(device.address)}")
+                    NavBus.logEvent("cccd_rollback addr=${NavLog.addr(device.address)}")
                     return
                 }
-                NavLog.i("cccd ${if (enable) "subscribe" else "unsubscribe"} peer=${NavLog.addr(device.address)}")
+                NavBus.logEvent("cccd_write addr=${NavLog.addr(device.address)} action=${if (enable) "enable" else "disable"} responseNeeded=$responseNeeded")
                 // Đã có đồng hồ subscribe -> dừng quảng bá BLE để tiết kiệm pin radio & giảm nhiễu sóng
                 if (enable) {
-                    stopAdvertisingLocked()
-                    setStatus(gen, "đã kết nối Watch S5")
+                    stopAdvertisingLocked("subscribed")
+                    setState(gen, BleState.CONNECTED, "đã kết nối Watch S5")
                 } else if (peers.values.none { it.subscribed }) {
-                    startAdvertising(gen, lowPower = false)
+                    startAdvertising(gen)
                 }
                 updateCount()
                 pump()
@@ -434,8 +479,29 @@ class BlePeripheralServer(
         override fun onNotificationSent(device: BluetoothDevice, status: Int) {
             synchronized(lock) {
                 if (gen != generation || !running) return
-                if (status != BluetoothGatt.GATT_SUCCESS) NavLog.i("notify callback status=$status peer=${NavLog.addr(device.address)}")
-                if (inFlight == device.address) inFlight = null
+                // Callback chỉ hợp lệ khi slot đang thuộc đúng địa chỉ này; ngược lại bỏ qua hoàn toàn (kể cả deliveryError).
+                if (inFlight != device.address) return
+                val sentPeer = peers[device.address]
+                // Slot mồ côi / peer không còn nối+subscribe: chỉ nhả slot, không đụng trạng thái gửi.
+                val current = !inFlightOrphaned && sentPeer?.subscribed == true
+                if (!current) {
+                    inFlight = null
+                    pump()
+                    return
+                }
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    NavBus.logEvent("notify_sent addr=${NavLog.addr(device.address)} status=$status")
+                    markNotifyError("status=$status")
+                } else if (sentPeer != null && !sentPeer.sentConfirmed) {
+                    sentPeer.sentConfirmed = true
+                    NavBus.logEvent("notify_sent addr=${NavLog.addr(device.address)} status=$status")
+                }
+                if (status == BluetoothGatt.GATT_SUCCESS && NavBus.deliveryError) {
+                    // Chỉ một lần gửi hoàn tất thành công mới xóa lỗi gửi.
+                    NavBus.deliveryError = false
+                    if (NavBus.bleState == BleState.NOTIFY_ERROR) NavBus.setBle(BleState.CONNECTED, "đã kết nối Watch S5")
+                }
+                inFlight = null
                 pump()
             }
         }
@@ -445,7 +511,8 @@ class BlePeripheralServer(
         val SERVICE_UUID: UUID = UUID.fromString("6e4f0001-b5a3-f393-e0a9-e50e24dcca9e")
         val NAV_UUID: UUID = UUID.fromString("6e4f0002-b5a3-f393-e0a9-e50e24dcca9e")
         val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        /** Giá trị trả về của build lambda cho khung đã lỗi thời (nguồn đổi): bỏ, không gửi. */
+        val STALE_FRAME = ByteArray(0)
         private const val IN_FLIGHT_TIMEOUT_MS = 2000L
-        private const val FAST_ADV_WINDOW_MS = 30_000L
     }
 }

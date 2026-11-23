@@ -1,8 +1,8 @@
 {
   "package": "dev.motonavhud.app",
   "name": "MotoNav",
-  "versionName": "0.3.1",
-  "versionCode": 5,
+  "versionName": "0.4.1",
+  "versionCode": 7,
   "icon": "/common/icon.png",
   "display": { "backgroundColor": "#000000" },
   "simulationVersion": "default",
@@ -13,7 +13,8 @@
     { "name": "system.vibrator" },
     { "name": "system.storage" },
     { "name": "system.interconnect" },
-    { "name": "system.bluetooth.ble" }
+    { "name": "system.bluetooth.ble" },
+    { "name": "system.configuration" }
   ],
   "config": { "logLevel": "log", "designWidth": 480 },
   "router": {

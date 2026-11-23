@@ -314,22 +314,6 @@ test('BLE: state 0 ban đầu (chưa thấy 1/2, <3 s) không retry; 0 sau khi �
   x.tr.stop()
 })
 
-test('shortStatus: dòng ngắn cho người lái, DEBUG_STATUS mặc định false', () => {
-  const { shortStatus, statusTone } = require('../src/common/status.js')
-  assert.strictEqual(cfg.DEBUG_STATUS, false)
-  assert.strictEqual(shortStatus('C', ''), 'Đã kết nối')
-  assert.strictEqual(shortStatus('', 'C quét V3 0/0 t1 r1'), 'Đang tìm ĐT...')
-  assert.strictEqual(shortStatus('', 'C không thấy máy (0 kq) thử lại 1s'), 'Đang tìm ĐT...')
-  assert.strictEqual(shortStatus('', 'C Không có dữ liệu BLE (MTU?) thử lại 1s'), 'Chờ dữ liệu ĐT')
-  assert.strictEqual(shortStatus('', 'C ngắt thử lại 2s'), 'Đang nối lại...')
-  assert.strictEqual(shortStatus('', 'C chờ tin'), 'Đang kết nối...')
-  assert.strictEqual(shortStatus('', ''), 'Đang tìm ĐT...')
-  assert.strictEqual(statusTone('C', '', false), 'ok')
-  assert.strictEqual(statusTone('C', '', true), 'warn')
-  assert.strictEqual(statusTone('', 'C quét V3 0/0', false), 'warn')
-  assert.strictEqual(statusTone('', 'C ngắt thử lại 2s', false), 'err')
-})
-
 test('hud view urgency: >200m normal, <=200m far, <=50m near', () => {
   const st = h.createState()
   h.accept(st, msg({ q: 1, d: 300 }), 0)

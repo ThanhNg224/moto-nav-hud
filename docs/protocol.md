@@ -1,6 +1,6 @@
-# Hợp đồng dữ liệu phone -> watch (v1.2)
+# Hợp đồng dữ liệu phone -> watch (v1.3)
 
-Nguồn sự thật duy nhất cho `phone-app/` và `watch-app/`. Đổi hợp đồng phải sửa file này trước. v1.1 (2026-11-23) tiếp thu review thiết kế của Codex Astra (`docs/research/05-codex-protocol-review.md`). v1.2 tiếp thu review code của Codex sol: thêm mã ghép `p`, NAV chỉ Notify, tuổi hiệu dụng phía đồng hồ, ngân sách byte thực tế.
+Nguồn sự thật duy nhất cho `phone-app/` và `watch-app/`. Đổi hợp đồng phải sửa file này trước. v1.1 (2026-11-23) tiếp thu review thiết kế của Codex Astra (`docs/research/05-codex-protocol-review.md`). v1.2 tiếp thu review code của Codex sol: thêm mã ghép `p`, NAV chỉ Notify, tuổi hiệu dụng phía đồng hồ, ngân sách byte thực tế. v1.3 (2026-11-23): thêm khóa tùy chọn `y` đánh dấu khung demo của phone.
 
 ## Payload (JSON UTF-8, kích thước đo trên chuỗi đã serialize, tối đa `min(180, MTU-3)` byte)
 
@@ -23,10 +23,11 @@ Nguồn sự thật duy nhất cho `phone-app/` và `watch-app/`. Đổi hợp �
 | `e` | giờ đến dự kiến `HH:mm` | string | rỗng nếu không rõ |
 | `r` | quãng đường còn lại, mét | int | -1 nếu không rõ |
 | `p` | mã ghép | string | tối đa 8 ký tự `[A-Za-z0-9]`, đặt giống nhau ở `phone-app` (Prefs) và `watch-app/src/common/config.js`. Đồng hồ bỏ mọi tin có `p` khác. Gửi dạng rõ nên chỉ chống nhận nhầm/giả mạo vô tình, không phải mã hóa |
+| `y` | đánh dấu demo | int | TÙY CHỌN, chỉ có (giá trị 1) khi khung đến từ chế độ chạy thử của phone; vắng mặt với dẫn đường thật. Thuộc lõi: không bao giờ bị cắt. Đồng hồ hiện nhãn "demo" khi thấy `y`=1; đồng hồ cũ bỏ qua khóa lạ nên không bị ảnh hưởng (`v` vẫn là 1). Google Maps thật luôn thắng demo: khi Maps dẫn đường, phone tắt demo và gửi khung thật (không `y`) |
 
 `t` (thời điểm phone) đã bỏ khỏi hợp đồng; đo độ trễ bằng RTT khi cần.
 
-Thứ tự cắt khi vượt ngân sách byte: bỏ `e`, rồi rút `s` dần, rồi bỏ `s`, rồi bỏ `r` nếu lõi vẫn chưa vừa (thứ tự e, s, r). Lõi tối thiểu (`v,z,q,i,a,k,m,x,d,p`) với giá trị lớn nhất thực tế dài khoảng 100 byte, nên cần MTU đàm phán từ 107 trở lên. Nếu lõi không vừa `min(180, MTU-3)` thì phone KHÔNG gửi (trả kết quả "không vừa", hiện cảnh báo trên màn hình phone), không được gửi tin vượt ngân sách. Đồng hồ không biết MTU thật (API không trả giá trị đàm phán); nếu sau khi subscribe không nhận được tin hợp lệ nào trong 8 giây thì hiện "Không có dữ liệu BLE (MTU?)" và thử subscribe lại.
+Thứ tự cắt khi vượt ngân sách byte: bỏ `e`, rồi rút `s` dần, rồi bỏ `s`, rồi bỏ `r` nếu lõi vẫn chưa vừa (thứ tự e, s, r). Lõi tối thiểu (`v,z,q,i,a,k,m,x,d,p`, cộng `y`=`,"y":1` +6 byte ở khung demo) với giá trị lớn nhất thực tế dài khoảng 100 byte, nên cần MTU đàm phán từ 107 trở lên (113 cho khung demo với giá trị lớn nhất). Nếu lõi không vừa `min(180, MTU-3)` thì phone KHÔNG gửi (trả kết quả "không vừa", hiện cảnh báo trên màn hình phone), không được gửi tin vượt ngân sách. Đồng hồ không biết MTU thật (API không trả giá trị đàm phán); nếu sau khi subscribe không nhận được tin hợp lệ nào trong 8 giây thì thử subscribe lại; rider thấy giai đoạn kết nối đã bản địa hóa của đồng hồ (chuỗi "Không có dữ liệu BLE (MTU?)" chỉ là chẩn đoán debug).
 
 ## Quy tắc phía phone
 

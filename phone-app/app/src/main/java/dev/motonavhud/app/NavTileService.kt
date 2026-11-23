@@ -3,6 +3,7 @@ package dev.motonavhud.app
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PendingIntent
+import android.bluetooth.BluetoothManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -38,7 +39,7 @@ class NavTileService : TileService() {
             openApp()
             return
         }
-        val ok = runCatching { NavForegroundService.startByUser(this) }.isSuccess
+        val ok = runCatching { NavForegroundService.startByUser(this, "tile") }.isSuccess
         if (!ok) openApp()
         syncTile()
     }
@@ -66,11 +67,29 @@ class NavTileService : TileService() {
         val running = NavBus.serviceRunning
         tile.state = if (running) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "MotoNav"
-        tile.subtitle = when {
-            !running -> if (Prefs.isAutoStart(this)) "Tự bật theo Maps" else "Chạm để bật"
-            NavBus.subscribers > 0 -> "${NavBus.subscribers} đồng hồ nối"
-            else -> "Chờ Watch S5"
+        val btOn = getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == true
+        val sub = if (running) {
+            if (!btOn) R.string.svc_tile_bt_off else when (NavBus.serviceStatus()) {
+                NavBus.ServiceStatus.BT_OFF -> R.string.svc_tile_bt_off
+                NavBus.ServiceStatus.DELIVERY_PROBLEM -> R.string.svc_tile_error
+                NavBus.ServiceStatus.WAITING -> R.string.svc_tile_waiting
+                NavBus.ServiceStatus.DEMO -> R.string.svc_tile_demo
+                NavBus.ServiceStatus.NAVIGATING -> R.string.svc_tile_navigating
+                NavBus.ServiceStatus.ARRIVED -> R.string.svc_tile_arrived
+                NavBus.ServiceStatus.CONNECTED -> R.string.svc_tile_connected
+            }
+        } else {
+            val auto = Prefs.isAutoStart(this)
+            when {
+                !hasBluetoothPermissions() -> R.string.svc_tile_setup
+                !btOn -> R.string.svc_tile_bt_off
+                auto && !NavBus.listenerConnected -> R.string.svc_tile_setup
+                auto && NavBus.autoStartGate.isSuppressed() -> R.string.svc_tile_auto_paused
+                auto -> R.string.svc_tile_auto
+                else -> R.string.svc_tile_tap_start
+            }
         }
+        tile.subtitle = getString(sub)
         tile.updateTile()
     }
 

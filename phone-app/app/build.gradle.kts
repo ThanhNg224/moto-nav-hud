@@ -13,8 +13,8 @@ android {
         applicationId = "dev.motonavhud.app"
         minSdk = 29
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 6
+        versionName = "0.4.1"
     }
 
     buildTypes {

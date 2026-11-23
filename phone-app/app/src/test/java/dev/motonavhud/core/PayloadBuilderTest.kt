@@ -115,4 +115,26 @@ class PayloadBuilderTest {
     @Test fun controlCharsAreEscaped() {
         assertEquals("a\nb\tc", json(build(NavState(1, 3, 0, 1, "a\nb\tc", "", -1))).getString("s"))
     }
+
+    @Test fun demoMarkerOnlyWhenSetAndAppendedLast() {
+        val st = NavState(1, 3, 0, 180, "Nguyễn Văn Linh", "12:45", 4200)
+        assertFalse(json(build(st)).has("y"))
+        val b = (PayloadBuilder.build(st, 48211, 42, 7, 900, p, demo = true) as PayloadBuilder.Result.Ok).bytes
+        assertEquals(1, json(b).getInt("y"))
+        assertTrue(String(b, Charsets.UTF_8).endsWith(""","r":4200,"y":1}"""))
+    }
+
+    @Test fun demoMarkerSurvivesEveryCutAndCountsInBudget() {
+        val st = NavState(1, 13, 0, 2000, "Đại lộ Võ Nguyên Giáp ".repeat(5), "12:45", 123456)
+        for (limit in 60..200) {
+            val r = PayloadBuilder.build(st, 2147483647, 123456789, 7, 900, p, mtuLimit = limit, demo = true)
+            if (r is PayloadBuilder.Result.Ok) {
+                assertTrue(r.bytes.size <= minOf(180, limit))
+                assertEquals(1, json(r.bytes).getInt("y"))
+            } else {
+                r as PayloadBuilder.Result.Unfittable
+                assertTrue(r.coreBytes > limit)
+            }
+        }
+    }
 }

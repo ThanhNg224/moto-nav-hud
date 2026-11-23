@@ -2,14 +2,14 @@ package dev.motonavhud.core
 
 import java.text.BreakIterator
 
-/** Tạo JSON theo docs/protocol.md v1.2. */
+/** Tạo JSON theo docs/protocol.md v1.3. */
 object PayloadBuilder {
     const val MAX_BYTES = 180
 
     sealed class Result {
         class Ok(val bytes: ByteArray) : Result()
 
-        /** Lõi (v,z,q,i,a,k,m,x,d,p) cũng không vừa [cap]; KHÔNG được gửi gì. */
+        /** Lõi (v,z,q,i,a,k,m,x,d,p và y nếu demo) cũng không vừa [cap]; KHÔNG được gửi gì. */
         class Unfittable(val coreBytes: Int, val cap: Int) : Result()
     }
 
@@ -18,11 +18,11 @@ object PayloadBuilder {
     /**
      * [mtuLimit] là số byte dữ liệu tối đa của peer (MTU - 3); giới hạn thực là min(180, mtuLimit),
      * đo trên JSON đã serialize (ký tự thoát như `\"` tính đủ). Thứ tự bỏ: `e`, rút `s` theo grapheme
-     * rồi bỏ `s`, cuối cùng `r`. Khóa bị bỏ thì vắng mặt hẳn. Lõi không vừa -> [Result.Unfittable].
+     * rồi bỏ `s`, cuối cùng `r`; `y` (chỉ khi [demo]) là một phần lõi, không bị cắt. Khóa bị bỏ thì vắng mặt hẳn. Lõi không vừa -> [Result.Unfittable].
      */
-    fun build(state: NavState, z: Int, q: Int, i: Int, a: Int, p: String, mtuLimit: Int = MAX_BYTES): Result {
+    fun build(state: NavState, z: Int, q: Int, i: Int, a: Int, p: String, mtuLimit: Int = MAX_BYTES, demo: Boolean = false): Result {
         val cap = minOf(MAX_BYTES, mtuLimit)
-        fun ser(s: String?, e: String?, withR: Boolean) = json(state, z, q, i, a, p, s, e, withR).toByteArray(Charsets.UTF_8)
+        fun ser(s: String?, e: String?, withR: Boolean) = json(state, z, q, i, a, p, s, e, withR, demo).toByteArray(Charsets.UTF_8)
 
         ser(state.s, state.e, true).let { if (it.size <= cap) return Result.Ok(it) }
         ser(state.s, null, true).let { if (it.size <= cap) return Result.Ok(it) }
@@ -49,7 +49,7 @@ object PayloadBuilder {
         return ends
     }
 
-    private fun json(st: NavState, z: Int, q: Int, i: Int, a: Int, p: String, s: String?, e: String?, withR: Boolean): String {
+    private fun json(st: NavState, z: Int, q: Int, i: Int, a: Int, p: String, s: String?, e: String?, withR: Boolean, demo: Boolean): String {
         val sb = StringBuilder(160)
         sb.append("{\"v\":1,\"z\":").append(z).append(",\"q\":").append(q).append(",\"i\":").append(i)
             .append(",\"a\":").append(a).append(",\"k\":").append(st.k).append(",\"m\":").append(st.m)
@@ -58,6 +58,7 @@ object PayloadBuilder {
         if (s != null) sb.append(",\"s\":\"").append(escape(s)).append('"')
         if (e != null) sb.append(",\"e\":\"").append(escape(e)).append('"')
         if (withR) sb.append(",\"r\":").append(st.r)
+        if (demo) sb.append(",\"y\":1") // đánh dấu demo: thuộc lõi, không bao giờ bị cắt
         return sb.append('}').toString()
     }
 

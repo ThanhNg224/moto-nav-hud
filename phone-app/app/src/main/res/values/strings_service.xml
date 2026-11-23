@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="svc_notif_title">MotoNav đang chạy</string>
+    <string name="svc_notif_waiting">Đang chờ đồng hồ kết nối</string>
+    <string name="svc_notif_connected">Đồng hồ đã kết nối, sẵn sàng</string>
+    <string name="svc_notif_navigating">Đang dẫn đường tới đồng hồ</string>
+    <string name="svc_notif_demo">Đang chạy thử (demo)</string>
+    <string name="svc_notif_bt_off">Bluetooth đang tắt, hãy bật lại</string>
+    <string name="svc_notif_error">Sự cố kết nối đồng hồ</string>
+    <string name="svc_notif_stop">Dừng</string>
+    <string name="svc_tile_waiting">Chờ đồng hồ</string>
+    <string name="svc_tile_connected">Đã nối đồng hồ</string>
+    <string name="svc_tile_navigating">Đang dẫn đường</string>
+    <string name="svc_tile_demo">Chạy thử</string>
+    <string name="svc_tile_bt_off">Bluetooth đang tắt</string>
+    <string name="svc_tile_error">Sự cố kết nối</string>
+    <string name="svc_tile_setup">Cần thiết lập</string>
+    <string name="svc_tile_tap_start">Chạm để bật</string>
+    <string name="svc_tile_auto">Tự bật theo Maps</string>
+    <string name="svc_demo_straight">Đi thẳng</string>
+    <string name="svc_demo_slight_left">Chếch trái</string>
+    <string name="svc_demo_sharp_left">Gắt trái</string>
+    <string name="svc_demo_slight_right">Chếch phải</string>
+    <string name="svc_demo_sharp_right">Gắt phải</string>
+    <string name="svc_demo_uturn">Quay đầu</string>
+    <string name="svc_demo_roundabout">Vòng xuyến</string>
+    <string name="svc_demo_keep_left">Giữ trái</string>
+    <string name="svc_demo_keep_right">Giữ phải</string>
+    <string name="svc_demo_arrive">Đã đến nơi</string>
+    <string name="svc_demo_depart">Xuất phát</string>
+    <string name="svc_tile_auto_paused">Tự bật đang tạm dừng</string>
+    <string name="svc_notif_arrived">Đã đến nơi</string>
+    <string name="svc_tile_arrived">Đã đến nơi</string>
+</resources>

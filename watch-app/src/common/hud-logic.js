@@ -1,5 +1,6 @@
 // Logic thuần của HUD (không import framework). Hợp đồng: docs/protocol.md
 var DEFAULTS = require('./config.js')
+var i18n = require('./i18n.js')
 
 var NAMES = [
   'Không rõ', 'Đi thẳng', 'Chếch trái', 'Rẽ trái', 'Gắt trái', 'Chếch phải', 'Rẽ phải',
@@ -85,16 +86,18 @@ function parsePayload(input, cfg) {
     z: o.z, q: o.q, i: o.i, a: o.a, k: o.k, m: o.m, x: o.x, d: o.d,
     s: typeof o.s === 'string' ? o.s : '',
     e: typeof o.e === 'string' ? o.e : '',
-    r: o.r == null ? -1 : o.r
+    r: o.r == null ? -1 : o.r,
+    y: o.y === 1 ? 1 : 0   // 1 = khung chạy thử do điện thoại phát (tùy chọn; vắng = 0)
   }
 }
 
 var HAPTIC_PRESETS = {
-  std: { far: 200, near: 50, label: 'Chuẩn (200/50m)' },
-  city: { far: 150, near: 40, label: 'Phố (150/40m)' },
-  fast: { far: 300, near: 80, label: 'Xa (300/80m)' },
-  off: { far: -1, near: -1, label: 'Tắt rung' }
+  std: { far: 200, near: 50 },
+  city: { far: 150, near: 40 },
+  fast: { far: 300, near: 80 },
+  off: { far: -1, near: -1 }   // chỉ tắt rung báo rẽ; xung mất dữ liệu ('lost') vẫn chạy
 }
+function presetLabel(key) { return i18n.t('preset.' + (HAPTIC_PRESETS[key] ? key : 'std')) }
 var PRESET_ORDER = ['std', 'city', 'fast', 'off']
 
 function applyPreset(state, presetKey) {
@@ -204,20 +207,20 @@ function emptyView(mode, banner) {
 }
 
 // Dữ liệu hiển thị. mode: waiting | stale | recalc | nav | arrived
-function view(state, now) {
+function viewCore(state, now) {
   var cfg = state.cfg
   var m = state.msg
-  if (!m && state.lost) { var s0 = emptyView('stale', 'MẤT DỮ LIỆU'); s0.arcPercent = 100; return s0 }
-  if (!m) return emptyView('waiting', 'Chờ chỉ đường')
-  if (stale(state, now)) { var s1 = emptyView('stale', 'MẤT DỮ LIỆU'); s1.arcPercent = 100; return s1 }
-  if (m.k === 0) return emptyView('waiting', 'Chờ chỉ đường')
+  if (!m && state.lost) { var s0 = emptyView('stale', i18n.t('banner.stale')); s0.arcPercent = 100; return s0 }
+  if (!m) return emptyView('waiting', i18n.t('pre.idle'))
+  if (stale(state, now)) { var s1 = emptyView('stale', i18n.t('banner.stale')); s1.arcPercent = 100; return s1 }
+  if (m.k === 0) return emptyView('waiting', i18n.t('pre.idle'))
   var road = m.s
   if (cfg.FOLD_DIACRITICS) road = foldDiacritics(road)
   var street = road
   var exitBadge = ''
   if (m.m === 9 && m.x > 0) {
-    exitBadge = 'LỐI ' + m.x
-    street = 'Lối ' + m.x + (road ? ' · ' + road : '')
+    exitBadge = i18n.t('exit.badge', m.x)
+    street = i18n.t('exit.street', m.x) + (road ? ' · ' + road : '')
   }
   var bottom = [m.e, m.r >= 0 ? formatDistance(m.r) : ''].filter(function (v) { return v }).join(' · ')
   var v = emptyView('nav')
@@ -227,8 +230,8 @@ function view(state, now) {
   v.eta = m.e
   v.remain = m.r >= 0 ? formatDistance(m.r) : ''
   v.bottom = bottom
-  if (m.k === 2) { v.mode = 'recalc'; v.banner = 'Đang tính lại'; v.street = ''; v.road = ''; v.exitBadge = ''; return v }
-  if (m.k === 3) { v.mode = 'arrived'; v.arrow = null; v.street = ''; v.road = ''; v.exitBadge = ''; v.banner = 'Đã đến'; v.arcPercent = 100; return v }
+  if (m.k === 2) { v.mode = 'recalc'; v.banner = i18n.t('banner.recalc'); v.arcPercent = 100; v.street = ''; v.road = ''; v.exitBadge = ''; return v }
+  if (m.k === 3) { v.mode = 'arrived'; v.arrow = null; v.street = ''; v.road = ''; v.exitBadge = ''; v.banner = i18n.t('banner.arrived'); v.arcPercent = 100; return v }
   v.arrow = arrowAsset(m.m)
   v.distance = formatDistance(m.d)
   if (m.d >= 0) {
@@ -244,12 +247,38 @@ function view(state, now) {
   return v
 }
 
+function view(state, now) {
+  var v = viewCore(state, now)
+  v.phoneDemo = !!(state.msg && state.msg.y === 1 && v.mode !== 'stale' && v.mode !== 'waiting')   // khung gần nhất do ĐT chạy thử
+  return v
+}
+
+// Lớp phủ Cài đặt không được che hướng dẫn trực tiếp.
+// ctx: {mode, routeActive (đã có hướng dẫn từ lần chờ gần nhất), pulseActive, vibe, menuOpen}
+function isGuiding(mode) { return mode === 'nav' || mode === 'recalc' || mode === 'arrived' }
+// Chỉ cho mở khi không hướng dẫn trực tiếp, không mất dữ liệu giữa tuyến và không có xung rung đang chạy
+function canOpenMenu(c) {
+  return !isGuiding(c.mode) && !(c.mode === 'stale' && c.routeActive) && !c.pulseActive
+}
+// Cờ "đã có tuyến thật": chỉ hướng dẫn thật (không chạy thử cục bộ/ĐT) bật; màn chờ tắt; stale giữ nguyên
+function nextRouteActive(prev, mode, demo, phoneDemo) {
+  if (isGuiding(mode)) return (!demo && !phoneDemo) ? true : prev
+  return mode === 'waiting' ? false : prev
+}
+function shouldCloseMenu(c) {
+  return !!c.menuOpen && (!!c.vibe || !canOpenMenu(c))
+}
+// Có hướng dẫn thật còn tươi (k 1..3, chưa stale): không cho chạy thử cục bộ đè lên
+function hasFreshGuidance(state, now) {
+  return !!(state.msg && state.msg.k >= 1 && !stale(state, now))
+}
+
 // Chuỗi demo: [m, x, d, s]
 var DEMO = [
   [1, 0, 850, 'Nguyễn Văn Linh'], [2, 0, 420, 'Nguyễn Hữu Thọ'], [3, 0, 200, 'Lê Văn Việt'],
   [4, 0, 120, 'Võ Văn Ngân'], [5, 0, 90, 'Phạm Văn Đồng'], [6, 0, 50, 'Trường Chinh'],
-  [7, 0, 30, 'Cộng Hòa'], [8, 0, 1500, 'Quay đầu tại ngã tư'], [9, 2, 180, 'Vòng xuyến Dân Chủ'],
-  [10, 0, 2300, 'Xa lộ Hà Nội'], [11, 0, 640, 'Mai Chí Thọ'], [13, 0, 250, 'Xuất phát'], [12, 0, 0, 'Điểm đến']
+  [7, 0, 30, 'Cộng Hòa'], [8, 0, 1500, 'demo.uturn'], [9, 2, 180, 'demo.roundabout'],
+  [10, 0, 2300, 'Xa lộ Hà Nội'], [11, 0, 640, 'Mai Chí Thọ'], [13, 0, 250, 'demo.start'], [12, 0, 0, 'demo.dest']
 ]
 function demoMessage(i, q, subTick, ticksPerStep) {
   var a = DEMO[i % DEMO.length]
@@ -263,13 +292,13 @@ function demoMessage(i, q, subTick, ticksPerStep) {
     d = Math.round(startD + (endD - startD) * frac)
   }
   return {
-    v: 1, z: 1, q: q, i: i, a: 0, p: DEFAULTS.PAIR_TOKEN, k: isArrived ? 3 : 1, m: a[0], x: a[1], d: d, s: a[3],
+    v: 1, z: 1, q: q, i: i, a: 0, p: DEFAULTS.PAIR_TOKEN, k: isArrived ? 3 : 1, m: a[0], x: a[1], d: d, s: a[3].indexOf('demo.') === 0 ? i18n.t(a[3]) : a[3],
     e: '12:45', r: Math.max(0, 4200 - (i % DEMO.length) * 300)
   }
 }
 
 module.exports = {
-  NAMES: NAMES, HAPTIC_PRESETS: HAPTIC_PRESETS, PRESET_ORDER: PRESET_ORDER, applyPreset: applyPreset,
+  NAMES: NAMES, HAPTIC_PRESETS: HAPTIC_PRESETS, presetLabel: presetLabel, shouldCloseMenu: shouldCloseMenu, canOpenMenu: canOpenMenu, nextRouteActive: nextRouteActive, hasFreshGuidance: hasFreshGuidance, isGuiding: isGuiding, PRESET_ORDER: PRESET_ORDER, applyPreset: applyPreset,
   arrowAsset: arrowAsset, formatDistance: formatDistance, foldDiacritics: foldDiacritics,
   utf8Decode: utf8Decode, parsePayload: parsePayload, createState: createState, accept: accept, invalidate: invalidate,
   isStale: isStale, tick: tick, view: view, demoMessage: demoMessage, DEMO_LENGTH: DEMO.length

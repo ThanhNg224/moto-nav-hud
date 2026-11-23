@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mặc định: tiếng Việt. -->
+    <string name="ui_logo_desc">Biểu tượng MotoNav</string>
+    <string name="ui_header_subtitle">Chỉ đường trên Watch S5 · v%1$s</string>
+
+    <!-- Badge -->
+    <string name="ui_badge_running">ĐANG CHẠY</string>
+    <string name="ui_badge_auto">TỰ BẬT</string>
+    <string name="ui_badge_stopped">ĐÃ DỪNG</string>
+    <string name="ui_badge_missing_perm">THIẾU QUYỀN</string>
+    <string name="ui_badge_connecting">ĐANG NỐI MAPS</string>
+    <string name="ui_badge_bt_off">BLUETOOTH TẮT</string>
+
+    <!-- Thẻ hero -->
+    <string name="ui_demo_prefix">"[Thử] "</string>
+    <string name="ui_hero_ready">Sẵn sàng</string>
+    <string name="ui_hero_ready_title">MotoNav sẽ thử tự bật khi Google Maps bắt đầu dẫn đường</string>
+    <string name="ui_hero_ready_meta">Nếu Android chặn, bấm Bắt đầu hoặc chạm ô MotoNav trên thanh cài đặt nhanh</string>
+    <string name="ui_hero_stopped">Đã dừng</string>
+    <string name="ui_hero_disabled_title">Bấm Bắt đầu để kết nối với Watch S5</string>
+    <string name="ui_hero_disabled_meta">Tự bật đang tắt — bật lại trong Cài đặt</string>
+    <string name="ui_hero_suppressed_title">Tự bật đang tạm ngưng cho chuyến đi này</string>
+    <string name="ui_hero_suppressed_meta">Bấm Bắt đầu để bật lại ngay</string>
+    <string name="ui_hero_bt_off_title">Bluetooth đang tắt</string>
+    <string name="ui_hero_bt_off_meta">Bật Bluetooth của máy rồi bấm Bắt đầu</string>
+    <string name="ui_hero_missing">Thiếu quyền</string>
+    <string name="ui_hero_no_bt_title">Chưa có quyền Bluetooth</string>
+    <string name="ui_hero_no_bt_meta">Cấp quyền ở thẻ bên dưới</string>
+    <string name="ui_hero_no_listener_title">Chưa được đọc thông báo Google Maps</string>
+    <string name="ui_hero_no_listener_meta">Bật quyền ở thẻ bên dưới</string>
+    <string name="ui_hero_connecting">Đang nối</string>
+    <string name="ui_hero_connecting_title">Đang chờ Android nối dịch vụ đọc thông báo</string>
+    <string name="ui_hero_connecting_meta">Nếu kéo dài, tắt rồi bật lại quyền đọc thông báo hoặc bấm Bắt đầu</string>
+    <string name="ui_hero_wait_maps">Chờ Maps</string>
+    <string name="ui_hero_wait_maps_title">Mở Google Maps chế độ xe máy</string>
+    <string name="ui_hero_idle_countdown">Tự dừng sau %1$dp %2$ds</string>
+    <string name="ui_hero_idle_holding">Đang giữ kết nối với đồng hồ</string>
+    <string name="ui_hero_rerouting">Tính lại</string>
+    <string name="ui_hero_rerouting_title">%1$sĐang tìm lại tuyến đường</string>
+    <string name="ui_hero_rerouting_meta">Chờ Google Maps cập nhật</string>
+    <string name="ui_hero_arrived">Đã đến</string>
+    <string name="ui_hero_arrived_title">%1$sHoàn thành chuyến đi</string>
+    <string name="ui_hero_arrived_meta">Bạn có thể dừng MotoNav</string>
+    <string name="ui_hero_navigating_meta">Đang dẫn đường</string>
+    <string name="ui_turn_exit">%1$s · Lối %2$d</string>
+    <string name="ui_dist_m">%1$d m</string>
+    <string name="ui_dist_km">%1$.1f km</string>
+    <string name="ui_dist_unknown">–</string>
+
+    <!-- Hướng rẽ (cũng dùng cho mô tả trợ năng của mũi tên) -->
+    <string name="ui_man_unknown">Dẫn đường</string>
+    <string name="ui_man_straight">Đi thẳng</string>
+    <string name="ui_man_slight_left">Chếch trái</string>
+    <string name="ui_man_left">Rẽ trái</string>
+    <string name="ui_man_sharp_left">Ngoặt trái</string>
+    <string name="ui_man_slight_right">Chếch phải</string>
+    <string name="ui_man_right">Rẽ phải</string>
+    <string name="ui_man_sharp_right">Ngoặt phải</string>
+    <string name="ui_man_uturn">Quay đầu</string>
+    <string name="ui_man_roundabout">Vòng xuyến</string>
+    <string name="ui_man_keep_left">Giữ trái</string>
+    <string name="ui_man_keep_right">Giữ phải</string>
+    <string name="ui_man_arrive">Đích</string>
+    <string name="ui_man_depart">Xuất phát</string>
+
+    <!-- Thẻ quyền cần thiết -->
+    <string name="ui_setup_bt_why">MotoNav cần quyền Bluetooth (thiết bị ở gần) để phát tín hiệu và gửi chỉ đường sang Watch S5.</string>
+    <string name="ui_setup_bt_btn">Cấp quyền Bluetooth</string>
+    <string name="ui_setup_listener_why">MotoNav cần quyền đọc thông báo để lấy chỉ đường từ Google Maps. Trong Cài đặt, bật MotoNav ở mục “Quyền truy cập thông báo” (Notification access).</string>
+    <string name="ui_setup_listener_btn">Mở cài đặt đọc thông báo</string>
+    <string name="ui_open_app_settings">Mở cài đặt ứng dụng để cấp quyền</string>
+
+    <!-- Cảnh báo -->
+    <string name="ui_warn_mtu">Lưu ý: Kết nối Bluetooth hiện không đủ dung lượng để gửi chỉ đường đầy đủ, đồng hồ có thể không nhận được. Hãy ngắt rồi kết nối lại đồng hồ.</string>
+
+    <!-- Thẻ trạng thái -->
+    <string name="ui_card_watch">ĐỒNG HỒ S5</string>
+    <string name="ui_card_maps">GOOGLE MAPS</string>
+    <string name="ui_watch_no_permission">Thiếu quyền</string>
+    <string name="ui_watch_no_permission_sub">Cần quyền Bluetooth</string>
+    <string name="ui_watch_delivery">Gửi tin lỗi</string>
+    <string name="ui_watch_delivery_sub">Đồng hồ đã nối nhưng chưa nhận đủ chỉ đường. Thử kết nối lại đồng hồ.</string>
+    <string name="ui_watch_connected">Đã kết nối</string>
+    <plurals name="ui_watch_connected_sub">
+        <item quantity="other">%1$d thiết bị đang nhận chỉ đường</item>
+    </plurals>
+    <string name="ui_watch_off">Chưa bật</string>
+    <string name="ui_watch_off_sub">Bấm Bắt đầu để kết nối</string>
+    <string name="ui_watch_starting">Đang khởi động</string>
+    <string name="ui_watch_starting_sub">Đang bật Bluetooth</string>
+    <string name="ui_watch_waiting">Đang chờ nối</string>
+    <string name="ui_watch_waiting_sub">Mở ứng dụng MotoNav trên Watch S5</string>
+    <string name="ui_watch_waiting_saver_sub">Chế độ tiết kiệm pin: kết nối có thể chậm hơn</string>
+    <string name="ui_watch_bt_off">Bluetooth tắt</string>
+    <string name="ui_watch_bt_off_sub">Bật Bluetooth để tiếp tục</string>
+    <string name="ui_watch_retrying">Đang thử lại</string>
+    <string name="ui_watch_retrying_sub">Bluetooth gặp lỗi, đang tự thử lại</string>
+    <string name="ui_watch_error">Lỗi Bluetooth</string>
+    <string name="ui_watch_error_sub">Đã dừng sau nhiều lần thử. Bấm Bắt đầu để thử lại.</string>
+    <string name="ui_watch_auto_stopped">Đã tự dừng</string>
+    <string name="ui_watch_auto_stopped_sub">Dừng vì không dùng một lúc, để tiết kiệm pin</string>
+
+    <string name="ui_maps_no_listener">Chưa cấp quyền</string>
+    <string name="ui_maps_no_listener_sub">Cần bật quyền đọc thông báo</string>
+    <string name="ui_maps_connecting">Đang kết nối</string>
+    <string name="ui_maps_connecting_sub">Chờ Android nối dịch vụ đọc thông báo</string>
+    <string name="ui_maps_idle">Sẵn sàng</string>
+    <string name="ui_maps_idle_sub">Chưa dẫn đường — mở Google Maps để bắt đầu</string>
+    <string name="ui_maps_navigating">Đang dẫn đường</string>
+    <string name="ui_maps_navigating_sub">Đang đọc chỉ đường từ Maps</string>
+    <string name="ui_maps_rerouting">Đang tính lại tuyến</string>
+    <string name="ui_maps_rerouting_sub">Chờ Google Maps tìm tuyến mới</string>
+    <string name="ui_maps_arrived">Đã đến nơi</string>
+    <string name="ui_maps_arrived_sub">Chuyến đi đã hoàn thành</string>
+    <string name="ui_maps_demo">Đang chạy thử</string>
+    <string name="ui_maps_demo_sub">Giả lập khúc cua, không dùng dữ liệu Maps</string>
+
+    <!-- Cài đặt -->
+    <string name="ui_settings">Cài đặt</string>
+    <string name="ui_settings_open">Cài đặt ▾</string>
+    <string name="ui_settings_closed">Cài đặt ▸</string>
+    <string name="ui_state_expanded">Đang mở</string>
+    <string name="ui_state_collapsed">Đang đóng</string>
+    <string name="ui_section_auto">TỰ ĐỘNG HÓA</string>
+    <string name="ui_auto_start">Tự bật khi Google Maps bắt đầu dẫn đường</string>
+    <string name="ui_auto_start_desc">MotoNav thử kết nối đồng hồ khi Google Maps bắt đầu dẫn đường. Cần quyền đọc thông báo và Bluetooth; Android có thể chặn việc tự bật nền.</string>
+    <string name="ui_section_auto_stop">TỰ DỪNG KHI CHỜ (TIẾT KIỆM PIN)</string>
+    <string name="ui_chip_off">Tắt</string>
+    <string name="ui_chip_minutes">%1$dp</string>
+    <plurals name="ui_chip_minutes_desc">
+        <item quantity="other">%1$d phút</item>
+    </plurals>
+    <string name="ui_state_selected">Đã chọn</string>
+    <string name="ui_state_not_selected">Chưa chọn</string>
+
+    <string name="ui_section_perms">QUYỀN &amp; CHẠY NỀN</string>
+    <string name="ui_perm_bt_btn">Cấp quyền Bluetooth</string>
+    <string name="ui_perm_bt_granted">Quyền Bluetooth: đã cấp</string>
+    <string name="ui_perm_bt_why">Bắt buộc: để phát Bluetooth và gửi chỉ đường sang đồng hồ.</string>
+    <string name="ui_perm_bt_denied_toast">Quyền Bluetooth đã bị từ chối. Hãy cấp trong cài đặt ứng dụng.</string>
+    <string name="ui_perm_notif_btn">Cho phép hiện thông báo của MotoNav</string>
+    <string name="ui_perm_notif_granted">Thông báo của MotoNav: đã cho phép</string>
+    <string name="ui_perm_notif_why">Tùy chọn: hiện thông báo khi MotoNav chạy nền để bạn thấy và dừng nhanh. Không cấp vẫn dẫn đường được.</string>
+    <string name="ui_perm_notif_app_blocked">Thông báo của MotoNav đang bị tắt – mở cài đặt thông báo</string>
+    <string name="ui_perm_notif_channel_blocked">Kênh thông báo MotoNav đang bị tắt – mở cài đặt kênh</string>
+    <string name="ui_perm_listener_btn">Mở cài đặt đọc thông báo</string>
+    <string name="ui_perm_listener_why">Bắt buộc: để đọc chỉ đường từ thông báo Google Maps. Trong Cài đặt, tìm “Quyền truy cập thông báo” (Notification access).</string>
+    <string name="ui_perm_battery_btn">Cho phép chạy nền (tắt tối ưu pin)</string>
+    <string name="ui_perm_battery_why">Tùy chọn: giúp Android không tắt MotoNav khi chạy nền lâu.</string>
+    <string name="ui_perm_battery_fallback">Mở Cài đặt &gt; Pin &gt; MotoNav</string>
+
+    <string name="ui_section_debug">NÂNG CAO &amp; GỠ LỖI</string>
+    <string name="ui_capture">Ghi mẫu thông báo Maps (gỡ lỗi)</string>
+    <string name="ui_capture_clear">Xóa mẫu đã lưu</string>
+    <string name="ui_capture_clear_count">Xóa mẫu đã lưu (%1$d)</string>
+    <plurals name="ui_capture_cleared">
+        <item quantity="other">Đã xóa %1$d tệp mẫu</item>
+    </plurals>
+
+    <string name="ui_section_token">MÃ GHÉP (CHỈ DÀNH CHO BẢN WATCH TỰ BUILD)</string>
+    <string name="ui_token_desc">Chỉ đổi nếu bạn tự build ứng dụng Watch với mã khác. Mã này phải trùng với mã trong Watch, nếu không đồng hồ sẽ không nhận chỉ đường. Bản Watch chuẩn dùng mã mặc định.</string>
+    <string name="ui_token_hint">Mã ghép đồng hồ (1–8 chữ/số)</string>
+    <string name="ui_token_save">Lưu mã</string>
+    <string name="ui_token_reset">Đặt lại mặc định</string>
+    <string name="ui_token_saved">Đã lưu mã ghép</string>
+    <string name="ui_token_invalid">Mã không hợp lệ (1–8 chữ/số)</string>
+    <string name="ui_token_reset_done">Đã đặt lại mã mặc định</string>
+
+    <string name="ui_section_payload">GÓI TIN GẦN NHẤT</string>
+    <string name="ui_payload_empty">(chưa có dữ liệu)</string>
+    <string name="ui_section_diag">CHẨN ĐOÁN</string>
+    <string name="ui_tip_tile">Mẹo: thêm ô \"MotoNav\" vào thanh cài đặt nhanh để bật/tắt 1 chạm trước khi chạy xe.</string>
+
+    <!-- Thanh dưới -->
+    <string name="ui_demo_start">Chạy thử</string>
+    <string name="ui_demo_stop">Dừng chạy thử</string>
+    <string name="ui_demo_blocked">Không thể chạy thử khi Google Maps đang dẫn đường. Hãy kết thúc chuyến đi trong Maps trước.</string>
+    <string name="ui_start">Bắt đầu</string>
+    <string name="ui_stop">Dừng</string>
+</resources>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="svc_notif_title">MotoNav is running</string>
+    <string name="svc_notif_waiting">Waiting for the watch to connect</string>
+    <string name="svc_notif_connected">Watch connected, ready</string>
+    <string name="svc_notif_navigating">Sending navigation to the watch</string>
+    <string name="svc_notif_demo">Demo running</string>
+    <string name="svc_notif_bt_off">Bluetooth is off, turn it back on</string>
+    <string name="svc_notif_error">Watch connection problem</string>
+    <string name="svc_notif_stop">Stop</string>
+    <string name="svc_tile_waiting">Waiting for watch</string>
+    <string name="svc_tile_connected">Watch connected</string>
+    <string name="svc_tile_navigating">Navigating</string>
+    <string name="svc_tile_demo">Demo</string>
+    <string name="svc_tile_bt_off">Bluetooth off</string>
+    <string name="svc_tile_error">Connection problem</string>
+    <string name="svc_tile_setup">Setup required</string>
+    <string name="svc_tile_tap_start">Tap to start</string>
+    <string name="svc_tile_auto">Auto-start with Maps</string>
+    <string name="svc_demo_straight">Go straight</string>
+    <string name="svc_demo_slight_left">Slight left</string>
+    <string name="svc_demo_sharp_left">Sharp left</string>
+    <string name="svc_demo_slight_right">Slight right</string>
+    <string name="svc_demo_sharp_right">Sharp right</string>
+    <string name="svc_demo_uturn">U-turn</string>
+    <string name="svc_demo_roundabout">Roundabout</string>
+    <string name="svc_demo_keep_left">Keep left</string>
+    <string name="svc_demo_keep_right">Keep right</string>
+    <string name="svc_demo_arrive">Arrived</string>
+    <string name="svc_demo_depart">Depart</string>
+    <string name="svc_tile_auto_paused">Auto-start paused</string>
+    <string name="svc_notif_arrived">Arrived at destination</string>
+    <string name="svc_tile_arrived">Arrived</string>
+</resources>

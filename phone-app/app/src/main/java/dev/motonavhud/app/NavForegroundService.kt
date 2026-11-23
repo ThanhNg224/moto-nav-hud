@@ -44,7 +44,18 @@ class NavForegroundService : Service() {
     private var lastVerifyAt = 0L
     private var idleSince = 0L
     private var lastSubscribers = -1
-    private var lastActiveWork = false
+    private var lastNotifState = NavBus.ServiceStatus.WAITING
+    private var tickEpoch = 0
+    private var frameDemo = false // chế độ khung đã lấy mẫu ở đầu tick: dùng chung cho offer, emission và payload
+    private var keepStopReason = false
+    private var stopReason: String? = null
+
+    /** Ghi đúng một dòng `svc_stop` cho mỗi lần dừng: lý do cụ thể được ghi trước, [onDestroy] chỉ ghi nếu chưa có. */
+    private fun markStop(reason: String) {
+        if (stopReason != null) return
+        stopReason = reason
+        NavBus.logEvent("svc_stop reason=$reason uptime_ms=${SystemClock.elapsedRealtime() - NavBus.serviceStartedAt}")
+    }
 
     private val tick = object : Runnable {
         override fun run() {
@@ -76,8 +87,9 @@ class NavForegroundService : Service() {
                     NavLog.i("bt state=off")
                     cancelRetry()
                     ble.stop()
-                    NavBus.bleStatus = "Bluetooth đã tắt, chờ bật lại"
+                    NavBus.setBle(BleState.BT_OFF, "Bluetooth đã tắt, chờ bật lại")
                     NavBus.changed()
+                    syncNotification()
                 }
             }
         }
@@ -87,9 +99,8 @@ class NavForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            active = false
-            cancelRetry()
-            handler.removeCallbacks(tick)
+            markStop("manual")
+            beginStop()
             NavBus.autoStartGate.onManualStop(NavBus.mapsState.k != NavState.K_IDLE)
             stopSelf()
             return START_NOT_STICKY
@@ -97,26 +108,36 @@ class NavForegroundService : Service() {
         return START_NOT_STICKY
     }
 
+    /** Bước đầu của mọi đường dừng: chặn retry/tick muộn; phần dọn còn lại nằm ở [onDestroy]. */
+    private fun beginStop() {
+        active = false
+        cancelRetry()
+        handler.removeCallbacks(tick)
+    }
+
+    /** Vuốt khỏi Recents / xóa RAM: dừng hẳn như bấm Dừng nhưng KHÔNG tạm ngưng tự bật (không gọi onManualStop). */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        NavBus.logEvent("svc_task_removed")
+        markStop("task_removed")
+        beginStop()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onCreate() {
         super.onCreate()
+        NavBus.serviceStartedAt = SystemClock.elapsedRealtime()
+        requestedStopReason = null
         val channel = NotificationChannel(CHANNEL_ID, "MotoNav", NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        val stopIntent = Intent(this, NavForegroundService::class.java).setAction(ACTION_STOP)
-        val stopPi = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE)
-        val notification = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_hud_arrow)
-            .setContentTitle("MotoNav đang chạy")
-            .setContentText("Đang kết nối chỉ đường tới Watch S5")
-            .setOngoing(true)
-            .setContentIntent(open)
-            .addAction(Notification.Action.Builder(null, "Dừng", stopPi).build())
-            .build()
         try {
-            ServiceCompat.startForeground(this, NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            ServiceCompat.startForeground(this, NOTIF_ID, buildNotification(NavBus.ServiceStatus.WAITING), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         } catch (e: Exception) {
             NavBus.autoStartGate.onAutoStartBlocked()
-            NavBus.bleStatus = "không chạy được foreground service: ${e.javaClass.simpleName}"
+            keepStopReason = true
+            markStop("error")
+            NavBus.setBle(BleState.ERROR_STOPPED, "không chạy được foreground service: ${e.javaClass.simpleName}", e.javaClass.simpleName)
             NavBus.changed()
             stopSelf()
             return
@@ -136,16 +157,24 @@ class NavForegroundService : Service() {
         if (err != null) {
             // Lỗi không phục hồi được lúc khởi động (Bluetooth tắt, thiếu quyền...): dừng gọn, giữ lý do trên UI.
             NavBus.autoStartGate.onBleExhausted(NavBus.mapsState.k != NavState.K_IDLE)
-            NavBus.bleStatus = "không khởi động được: $err"
+            keepStopReason = true
+            if (getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == false) {
+                markStop("bt_off")
+                NavBus.setBle(BleState.BT_OFF, "không khởi động được: $err", err)
+            } else {
+                markStop("error")
+                NavBus.setBle(BleState.ERROR_STOPPED, "không khởi động được: $err", err)
+            }
             NavBus.changed()
             stopSelf()
             return
         }
         created = true
         active = true
-        NavLog.i("service start")
-        NavBus.bleStatus = "đang khởi động BLE"
+        NavBus.logEvent("svc_start reason=${NavBus.startReason}")
+        NavBus.setBle(BleState.STARTING, "đang khởi động BLE")
         NavBus.warning = ""
+        NavBus.warnCode = WarnCode.NONE
         NavBus.autoStartGate.onServiceStarted()
         NavBus.onServiceWake = { wakeTickNow() }
         registerReceiver(btReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
@@ -162,15 +191,17 @@ class NavForegroundService : Service() {
         if (++bleRetries > MAX_BLE_RETRIES) {
             active = false
             NavBus.autoStartGate.onBleExhausted(NavBus.mapsState.k != NavState.K_IDLE)
-            NavLog.i("ble giving up reason=$reason")
-            NavBus.bleStatus = "BLE lỗi, đã dừng: $reason"
+            NavBus.logEvent("ble_failure retry=$bleRetries giveup=1 reason=${NavBus.tok(reason)}")
+            markStop("error")
+            NavBus.setBle(BleState.ERROR_STOPPED, "BLE lỗi, đã dừng: $reason", reason)
             NavBus.changed()
             stopSelf()
             return
         }
-        NavLog.i("ble retry n=$bleRetries reason=$reason")
-        NavBus.bleStatus = "BLE lỗi ($reason), thử lại lần $bleRetries"
+        NavBus.logEvent("ble_failure retry=$bleRetries backoff_ms=${1000L * bleRetries} reason=${NavBus.tok(reason)}")
+        NavBus.setBle(BleState.ERROR_RETRY, "BLE lỗi ($reason), thử lại lần $bleRetries", bleRetries.toString())
         NavBus.changed()
+        syncNotification()
         cancelRetry()
         val r = Runnable {
             retry = null
@@ -187,9 +218,43 @@ class NavForegroundService : Service() {
 
     private fun startBle() {
         val err = ble.start()
-        NavBus.bleStatus = err?.let { "BLE lỗi: $it" } ?: "đang khởi động BLE"
+        if (err == null) NavBus.setBle(BleState.STARTING, "đang khởi động BLE")
         NavBus.changed()
         if (err != null) onBleFailure(ble.currentGeneration, err)
+    }
+
+    private fun buildNotification(s: NavBus.ServiceStatus): Notification {
+        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val stopIntent = Intent(this, NavForegroundService::class.java).setAction(ACTION_STOP)
+        val stopPi = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE)
+        val text = when (s) {
+            NavBus.ServiceStatus.WAITING -> R.string.svc_notif_waiting
+            NavBus.ServiceStatus.CONNECTED -> R.string.svc_notif_connected
+            NavBus.ServiceStatus.NAVIGATING -> R.string.svc_notif_navigating
+            NavBus.ServiceStatus.ARRIVED -> R.string.svc_notif_arrived
+            NavBus.ServiceStatus.DEMO -> R.string.svc_notif_demo
+            NavBus.ServiceStatus.BT_OFF -> R.string.svc_notif_bt_off
+            NavBus.ServiceStatus.DELIVERY_PROBLEM -> R.string.svc_notif_error
+        }
+        return Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_hud_arrow)
+            .setContentTitle(getString(R.string.svc_notif_title))
+            .setContentText(getString(text))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(open)
+            .addAction(Notification.Action.Builder(null, getString(R.string.svc_notif_stop), stopPi).build())
+            .build()
+    }
+
+    /** Chỉ đăng lại thông báo (cùng id) và làm mới ô Quick Settings khi trạng thái có nghĩa đổi, không theo từng tick. */
+    private fun syncNotification() {
+        if (!active) return
+        val s = NavBus.serviceStatus()
+        if (s == lastNotifState) return
+        lastNotifState = s
+        getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification(s))
+        NavTileService.requestRefresh(this)
     }
 
     /** Giữ CPU thức khi có đồng hồ nối hoặc Maps/Demo đang chạy; thả WakeLock lúc chờ rảnh để tiết kiệm pin. */
@@ -213,14 +278,23 @@ class NavForegroundService : Service() {
     private fun step(): Long {
         val now = SystemClock.elapsedRealtime()
         val snap = NavBus.mapsSnapshot
+        if (NavBus.demo && !NavBus.canStartDemo()) {
+            // Google Maps thật luôn thắng demo: tắt demo, vòng này sẽ offer lại khung thật.
+            NavBus.demo = false
+            NavBus.changed()
+        }
+        // Đọc epoch TRƯỚC cờ demo: nếu đổi giữa hai lần đọc thì khung bị coi là cũ (an toàn), tick sau lấy mẫu lại.
+        tickEpoch = NavBus.frameEpoch
+        val demoNow = NavBus.demo
+        if (demoNow != frameDemo) {
+            frameDemo = demoNow
+            ble.invalidatePending()
+        }
         val subs = ble.subscriberCount
         val activeWork = NavBus.demo || snap.state.k != NavState.K_IDLE || subs > 0
         syncWakeLock(activeWork, now)
-        if (activeWork && !lastActiveWork && subs == 0) ble.boostAdvertisingIfWaiting()
-        lastActiveWork = activeWork
-        if (!activeWork) ble.stepDownAdvertisingIfIdle(now)
 
-        if (NavBus.demo) {
+        if (frameDemo) {
             if (demoStart == 0L) demoStart = now
             throttle.offer(demoState(now - demoStart), now)
             seenVersion = snap.version
@@ -248,7 +322,8 @@ class NavForegroundService : Service() {
             if (remainMs <= 0L) {
                 active = false
                 NavLog.i("auto-stop idle=${autoStopMin}m")
-                NavBus.bleStatus = "tự dừng sau $autoStopMin phút chờ"
+                markStop("idle")
+                NavBus.setBle(BleState.AUTO_STOPPED, "tự dừng sau $autoStopMin phút chờ", autoStopMin.toString())
                 NavBus.idleRemainingSec = -1
                 NavBus.changed()
                 stopSelf()
@@ -260,9 +335,15 @@ class NavForegroundService : Service() {
             NavBus.idleRemainingSec = -1
         }
         val nextTickMs = if (activeWork) FAST_TICK_MS else IDLE_TICK_MS
-        val e = throttle.poll() ?: return nextTickMs
+        val e = throttle.poll()
+        if (e == null) {
+            syncNotification()
+            return nextTickMs
+        }
         val rendered = e.render(now)
         NavBus.currentState = rendered.state
+        NavBus.currentDemo = frameDemo && rendered.state.k != NavState.K_IDLE
+        syncNotification()
         if (rendered.state.k != NavState.K_IDLE) {
             idleSince = 0L
             NavBus.idleRemainingSec = -1
@@ -270,7 +351,11 @@ class NavForegroundService : Service() {
 
         // Payload được dựng LÚC GỬI THẬT từ mốc thời gian nguồn, nên a/hết hạn luôn tính lại.
         // Closure không có side-effect: cảnh báo MTU do BlePeripheralServer suy ra từ lần gửi thật của từng peer.
-        val build = { limit: Int -> buildPayload(e, limit) }
+        val demoAtEmit = frameDemo
+        val epochAtEmit = tickEpoch
+        val build = { limit: Int ->
+            if (NavBus.frameEpoch != epochAtEmit) BlePeripheralServer.STALE_FRAME else buildPayload(e, limit, demoAtEmit)
+        }
         transports.forEach { it.send(build) }
         logPayload(e, now)
         val subsNow = ble.subscriberCount
@@ -281,7 +366,7 @@ class NavForegroundService : Service() {
         }
         // Chỉ serialize bản xem trước khi MainActivity đang mở: tiết kiệm CPU/RAM khi tắt màn hình bỏ túi.
         if (NavBus.hasListeners) {
-            val preview = buildPayload(e, PayloadBuilder.MAX_BYTES)
+            val preview = buildPayload(e, PayloadBuilder.MAX_BYTES, demoAtEmit)
             NavBus.lastPayload = preview?.let { String(it, Charsets.UTF_8) } ?: "(không vừa)"
             NavBus.changed()
         }
@@ -298,9 +383,21 @@ class NavForegroundService : Service() {
         NavLog.i("payload q=${e.q} k=${r.state.k} m=${r.state.m} d=${r.state.d} i=${e.i} a=${r.a}")
     }
 
-    private fun buildPayload(e: Throttle.Emission, limit: Int): ByteArray? {
+    private fun buildPayload(e: Throttle.Emission, limit: Int, demo: Boolean): ByteArray? {
         val r = e.render(SystemClock.elapsedRealtime())
-        return (PayloadBuilder.build(r.state, e.z, e.q, e.i, r.a, Prefs.token(this), limit) as? PayloadBuilder.Result.Ok)?.bytes
+        return (PayloadBuilder.build(r.state, e.z, e.q, e.i, r.a, Prefs.token(this), limit, demo && r.state.k != NavState.K_IDLE) as? PayloadBuilder.Result.Ok)?.bytes
+    }
+
+    // Nhãn demo tổng hợp theo ngôn ngữ; tên đường demo (3, 6) là dữ liệu mẫu, không phải tên đường Maps thật.
+    private val demoNames by lazy {
+        mapOf(
+            1 to getString(R.string.svc_demo_straight), 2 to getString(R.string.svc_demo_slight_left), 3 to "Nguyễn Văn Linh",
+            4 to getString(R.string.svc_demo_sharp_left), 5 to getString(R.string.svc_demo_slight_right), 6 to "Lê Văn Lương",
+            7 to getString(R.string.svc_demo_sharp_right), 8 to getString(R.string.svc_demo_uturn),
+            9 to getString(R.string.svc_demo_roundabout), 10 to getString(R.string.svc_demo_keep_left),
+            11 to getString(R.string.svc_demo_keep_right), 12 to getString(R.string.svc_demo_arrive),
+            13 to getString(R.string.svc_demo_depart),
+        )
     }
 
     /** Demo: maneuver 1..13, mỗi bước 4 s, d giảm 260 -> 20 m (đủ thời gian quan sát mũi tên và nghe trọn 2 ngưỡng rung). */
@@ -308,17 +405,12 @@ class NavForegroundService : Service() {
         val idx = ((elapsed / DEMO_STEP_MS) % 13).toInt() + 1
         val frac = (elapsed % DEMO_STEP_MS).toDouble() / DEMO_STEP_MS
         val d = (260 - 240 * frac).toInt()
-        val names = mapOf(
-            1 to "Đi thẳng", 2 to "Chếch trái", 3 to "Nguyễn Văn Linh", 4 to "Gắt trái", 5 to "Chếch phải",
-            6 to "Lê Văn Lương", 7 to "Gắt phải", 8 to "Quay đầu", 9 to "Vòng xuyến", 10 to "Giữ trái",
-            11 to "Giữ phải", 12 to "Đã đến nơi", 13 to "Xuất phát",
-        )
         return NavState(
             k = if (idx == 12) NavState.K_ARRIVED else NavState.K_NAVIGATING,
             m = idx,
             x = if (idx == 9) 2 else 0,
             d = d,
-            s = names.getValue(idx),
+            s = demoNames.getValue(idx),
             e = "12:45",
             r = 4200,
         )
@@ -328,7 +420,8 @@ class NavForegroundService : Service() {
         active = false
         NavBus.onServiceWake = null
         cancelRetry()
-        NavLog.i("service stop")
+        markStop(requestedStopReason ?: "destroy")
+        requestedStopReason = null
         handler.removeCallbacks(tick)
         if (created) {
             runCatching { unregisterReceiver(btReceiver) }
@@ -339,15 +432,25 @@ class NavForegroundService : Service() {
         NavBus.serviceRunning = false
         NavBus.demo = false
         NavBus.currentState = NavState.IDLE
+        NavBus.currentDemo = false
+        NavBus.deliveryError = false
         NavBus.idleRemainingSec = -1
         NavBus.lastPayload = ""
         NavBus.subscribers = 0
+        NavBus.warning = ""
+        NavBus.warnCode = WarnCode.NONE
+        // Lý do dừng (lỗi/tự dừng) được giữ cho UI; mọi trường hợp khác về STOPPED.
+        if (!keepStopReason && NavBus.bleState != BleState.ERROR_STOPPED && NavBus.bleState != BleState.AUTO_STOPPED) {
+            NavBus.setBle(BleState.STOPPED, "chưa chạy")
+        }
         NavBus.changed()
         NavTileService.requestRefresh(this)
         super.onDestroy()
     }
 
     companion object {
+        /** Lý do dừng do người dùng yêu cầu qua stopService (không đi qua ACTION_STOP), để onDestroy log đúng. */
+        @Volatile private var requestedStopReason: String? = null
         private const val CHANNEL_ID = "nav_service"
         private const val ACTION_STOP = "dev.motonavhud.app.ACTION_STOP"
         private const val NOTIF_ID = 1
@@ -359,16 +462,20 @@ class NavForegroundService : Service() {
         private const val PAYLOAD_HEARTBEAT_LOG_MS = 30_000L
         private const val WAKE_LOCK_TIMEOUT_MS = 10 * 60_000L
 
-        fun start(ctx: Context) = ctx.startForegroundService(Intent(ctx, NavForegroundService::class.java))
+        fun start(ctx: Context, reason: String = "auto") {
+            NavBus.startReason = reason
+            ctx.startForegroundService(Intent(ctx, NavForegroundService::class.java))
+        }
 
-        fun startByUser(ctx: Context) {
+        fun startByUser(ctx: Context, reason: String = "manual") {
             NavBus.autoStartGate.onManualStartRequested()
-            start(ctx)
+            start(ctx, reason)
         }
 
         fun stop(ctx: Context) = ctx.stopService(Intent(ctx, NavForegroundService::class.java))
 
         fun stopByUser(ctx: Context) {
+            if (NavBus.serviceRunning) requestedStopReason = "manual"
             NavBus.autoStartGate.onManualStop(NavBus.mapsState.k != NavState.K_IDLE)
             stop(ctx)
         }

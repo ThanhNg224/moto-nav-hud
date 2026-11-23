@@ -17,6 +17,7 @@ function create(api, onError) {
   var pending = false  // đã gọi start nhưng id chưa về (Vela trả 205 nếu start tiếp khi còn task)
   var want = null      // mẫu yêu cầu mới nhất trong lúc start trước chưa có id
   var curKind = ''
+  var pendUntil = 0    // start đã gửi mà chưa có id: coi là đang rung tới mốc này (ms)
   var retryTimer = null
   function err(s) { try { if (onError) onError(s) } catch (e) {} }
 
@@ -64,6 +65,7 @@ function create(api, onError) {
   function start(kind) {
     var p = PATTERNS[kind]
     var my = gen
+    pendUntil = Date.now() + patternMs(p) + 250
     pending = true
     curKind = kind
     L.log('vib start', kind)
@@ -97,7 +99,13 @@ function create(api, onError) {
     start(kind)
   }
 
-  return { play: play, cancel: cancel, cancelTurn: cancelTurn }
+  // true khi còn có thể đang rung: mẫu xếp hàng, start chưa có id (trong hạn), hoặc task native chưa stop được và chưa quá hạn
+  function active() {
+    var now = Date.now()
+    return !!want || (pending && now < pendUntil) || (taskId != null && now < taskEndsAt)
+  }
+
+  return { play: play, cancel: cancel, cancelTurn: cancelTurn, active: active }
 }
 
 module.exports = { create: create }
