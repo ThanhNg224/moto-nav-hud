@@ -57,6 +57,8 @@ class BlePeripheralServer(
     private var advertiser: BluetoothLeAdvertiser? = null
     private var advCallback: AdvertiseCallback? = null
     private var advertising = false
+    private var advLowPower = false
+    private var advStartedAt = 0L
     private var includeName = true
     private var lastBuild: ((Int) -> ByteArray?)? = null
     private var inFlight: String? = null
@@ -136,14 +138,20 @@ class BlePeripheralServer(
         onChange()
     }
 
+    private fun stopAdvertisingLocked() {
+        runCatching { advCallback?.let { advertiser?.stopAdvertising(it) } }
+        advCallback = null
+        advertising = false
+        advStartedAt = 0L
+    }
+
     private fun stopLocked() {
         running = false
         generation++ // vô hiệu hóa callback muộn của phiên cũ
-        runCatching { advCallback?.let { advertiser?.stopAdvertising(it) } }
+        stopAdvertisingLocked()
         runCatching { gatt?.close() }
-        advCallback = null
         advertiser = null
-        advertising = false
+        advLowPower = false
         gatt = null
         characteristic = null
         peers.clear()
@@ -215,21 +223,42 @@ class BlePeripheralServer(
         }
     }
 
-    private fun startAdvertising(gen: Int) {
+    /** Hạ nhịp quảng bá xuống BALANCED sau 30 s chờ không có đồng hồ để tiết kiệm pin radio BLE. */
+    fun stepDownAdvertisingIfIdle(nowMs: Long) {
+        synchronized(lock) {
+            if (!running || !advertising || advLowPower) return
+            if (peers.values.any { it.subscribed }) return
+            if (advStartedAt > 0L && nowMs - advStartedAt >= FAST_ADV_WINDOW_MS) {
+                restartAdvertising(generation, lowPower = true)
+            }
+        }
+    }
+
+    /** Đẩy lại quảng bá tốc độ cao (LOW_LATENCY) khi vừa có chuyến đi mới mà đồng hồ chưa nối (kể cả khi bản tiết kiệm đang khởi động dở). */
+    fun boostAdvertisingIfWaiting() {
+        synchronized(lock) {
+            if (!running || !advLowPower || (!advertising && advCallback == null)) return
+            if (peers.values.any { it.subscribed }) return
+            restartAdvertising(generation, lowPower = false)
+        }
+    }
+
+    private fun startAdvertising(gen: Int, lowPower: Boolean = false) {
         val adv = advertiser ?: return
         if (advertising || advCallback != null || gen != generation) return // đã quảng bá hoặc đang chờ kết quả
+        advLowPower = lowPower
         val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .setAdvertiseMode(if (lowPower) AdvertiseSettings.ADVERTISE_MODE_BALANCED else AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+            .setTxPowerLevel(if (lowPower) AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM else AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
             .setConnectable(true)
             .setTimeout(0)
             .build()
         // Gói chính: cờ (3) + UUID 128-bit (18) <= 31. Tên Bluetooth hệ thống (không đặt được tùy ý) chỉ ở scan response.
         val data = AdvertiseData.Builder().setIncludeDeviceName(false).addServiceUuid(ParcelUuid(SERVICE_UUID)).build()
         val scan = AdvertiseData.Builder().setIncludeDeviceName(includeName).build()
-        val cb = AdvCb(gen)
+        val cb = AdvCb(gen, lowPower)
         advCallback = cb
-        NavLog.i("adv start name=$includeName")
+        NavLog.i("adv start name=$includeName mode=${if (lowPower) "balanced" else "fast"}")
         try {
             adv.startAdvertising(settings, data, scan, cb)
         } catch (e: Exception) {
@@ -238,22 +267,22 @@ class BlePeripheralServer(
         }
     }
 
-    private fun restartAdvertising(gen: Int) {
+    private fun restartAdvertising(gen: Int, lowPower: Boolean = false) {
         if (!running || gen != generation) return
-        NavLog.v("adv restart")
-        runCatching { advCallback?.let { advertiser?.stopAdvertising(it) } }
-        advCallback = null // callback muộn của lần quảng bá cũ không còn là "hiện tại"
-        advertising = false
-        startAdvertising(gen)
+        NavLog.v("adv restart lowPower=$lowPower")
+        stopAdvertisingLocked()
+        startAdvertising(gen, lowPower)
     }
 
-    private inner class AdvCb(private val gen: Int) : AdvertiseCallback() {
+    private inner class AdvCb(private val gen: Int, private val lowPower: Boolean) : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             synchronized(lock) {
                 if (gen != generation || this !== advCallback) return
                 advertising = true
-                NavLog.i("adv started")
-                setStatus(gen, "đang quảng bá" + if (includeName) "" else " (không kèm tên)")
+                advStartedAt = SystemClock.elapsedRealtime()
+                NavLog.i("adv started mode=${if (lowPower) "balanced" else "fast"}")
+                val modeTxt = if (lowPower) "chờ đồng hồ (tiết kiệm)" else "đang tìm đồng hồ"
+                setStatus(gen, modeTxt + if (includeName) "" else " (không kèm tên)")
             }
             onChange()
         }
@@ -264,13 +293,14 @@ class BlePeripheralServer(
                 NavLog.i("adv failed code=$errorCode")
                 if (errorCode == ADVERTISE_FAILED_ALREADY_STARTED) {
                     advertising = true
+                    advStartedAt = SystemClock.elapsedRealtime()
                     return
                 }
                 advertising = false
                 if (errorCode == ADVERTISE_FAILED_DATA_TOO_LARGE && includeName) {
                     includeName = false // tên Bluetooth quá dài: thử lại không kèm tên
                     advCallback = null
-                    startAdvertising(gen)
+                    startAdvertising(gen, lowPower)
                     return
                 }
                 fail(gen, "quảng bá lỗi (mã $errorCode)")
@@ -314,13 +344,14 @@ class BlePeripheralServer(
                 NavLog.i("peer ${if (newState == BluetoothProfile.STATE_CONNECTED) "connect" else "disconnect"} peer=${NavLog.addr(device.address)} status=$status")
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     peers.getOrPut(device.address) { Peer(device) }
-                    startAdvertising(gen) // advertising connectable có thể bị dừng khi có kết nối
+                    // Chỉ giữ quảng bá nếu chưa có đồng hồ nào subscribe
+                    if (peers.values.none { it.subscribed }) startAdvertising(gen, lowPower = advLowPower)
                 } else {
                     peers.remove(device.address)
                     warnPeers.remove(device.address)
                     updateWarning()
                     // inFlight giữ nguyên tới khi có onNotificationSent hoặc timeout (xem send()).
-                    restartAdvertising(gen)
+                    if (peers.values.none { it.subscribed }) restartAdvertising(gen, lowPower = false)
                     pump()
                 }
                 updateCount()
@@ -383,6 +414,13 @@ class BlePeripheralServer(
                     return
                 }
                 NavLog.i("cccd ${if (enable) "subscribe" else "unsubscribe"} peer=${NavLog.addr(device.address)}")
+                // Đã có đồng hồ subscribe -> dừng quảng bá BLE để tiết kiệm pin radio & giảm nhiễu sóng
+                if (enable) {
+                    stopAdvertisingLocked()
+                    setStatus(gen, "đã kết nối Watch S5")
+                } else if (peers.values.none { it.subscribed }) {
+                    startAdvertising(gen, lowPower = false)
+                }
                 updateCount()
                 pump()
             }
@@ -408,5 +446,6 @@ class BlePeripheralServer(
         val NAV_UUID: UUID = UUID.fromString("6e4f0002-b5a3-f393-e0a9-e50e24dcca9e")
         val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private const val IN_FLIGHT_TIMEOUT_MS = 2000L
+        private const val FAST_ADV_WINDOW_MS = 30_000L
     }
 }

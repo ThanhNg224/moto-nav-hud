@@ -23,22 +23,31 @@ object NavBus {
     /** Cảnh báo hiện trên UI (vd payload không vừa MTU của peer). Rỗng = không có. */
     @Volatile var warning = ""
 
+    /** Callback nhẹ để đánh thức NavForegroundService ngay lập tức khi Maps đổi trạng thái (không tính vào UI listeners). */
+    @Volatile var onServiceWake: (() -> Unit)? = null
+
     private val listeners = CopyOnWriteArraySet<() -> Unit>()
 
     /** Một cập nhật thật từ Maps (hoặc IDLE khi notification biến mất/listener ngắt). Trả về version mới. */
-    @Synchronized
     fun publishMaps(state: NavState, atMs: Long = SystemClock.elapsedRealtime()): Int {
-        mapsState = state
-        mapsStateAt = atMs
-        return ++mapsVersion
+        val ver = synchronized(this) {
+            mapsState = state
+            mapsStateAt = atMs
+            ++mapsVersion
+        }
+        onServiceWake?.invoke()
+        return ver
     }
 
     /** Làm mới mốc thời gian khi xác nhận notification Maps đang chọn vẫn còn sống (đứng đèn đỏ/đường thẳng). Trả null nếu đã có bản mới hơn. */
-    @Synchronized
     fun touchMaps(expectedVersion: Int, atMs: Long = SystemClock.elapsedRealtime()): Int? {
-        if (mapsVersion != expectedVersion || mapsState.k == NavState.K_IDLE) return null
-        mapsStateAt = atMs
-        return ++mapsVersion
+        val ver = synchronized(this) {
+            if (mapsVersion != expectedVersion || mapsState.k == NavState.K_IDLE) return null
+            mapsStateAt = atMs
+            ++mapsVersion
+        }
+        onServiceWake?.invoke()
+        return ver
     }
 
     fun addListener(l: () -> Unit) { listeners.add(l) }

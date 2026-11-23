@@ -14,13 +14,16 @@ module.exports = {
   // Ngưỡng rung (mét)
   VIBE_FAR_M: 200,
   VIBE_NEAR_M: 50,
+  // false: chỉ dùng kênh C (BLE); tắt hẳn vòng poll kênh A (interconnect) để tiết kiệm pin đồng hồ
+  ENABLE_INTERCONNECT: false,
   // BLE
   BLE_MTU: 185,
   BLE_FIRST_FRAME_MS: 8000,
-  BLE_CONNECT_TIMEOUT_MS: 10000,
+  BLE_CONNECT_TIMEOUT_MS: 6000,
   // Ghim địa chỉ BLE của điện thoại (vd 'AA:BB:CC:DD:EE:FF'); '' = nhận máy đầu tiên khớp service
   BLE_PINNED_ADDRESS: '',
-  BLE_BACKOFF_MS: [1000, 2000, 4000, 8000, 15000],
+  // Backoff ngắn (tối đa 3 s) để nối ngay khi điện thoại vừa bật Google Maps
+  BLE_BACKOFF_MS: [500, 1000, 2000, 3000],
   // Mỗi bước demo kéo dài 4 s, phát nhịp 1 s (luôn nhỏ hơn STALE_MS = 3000 để không bao giờ báo MẤT DỮ LIỆU)
   DEMO_STEP_MS: 4000,
   DEMO_TICK_MS: 1000

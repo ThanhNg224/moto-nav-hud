@@ -98,7 +98,7 @@ class MainActivity : Activity() {
             setTextColor(ink)
         })
         titleCol.addView(TextView(this).apply {
-            text = "Chỉ đường trên Watch S5 · v0.3"
+            text = "Chỉ đường trên Watch S5 · v0.3.1"
             textSize = 12f
             setTextColor(muted)
         })
@@ -653,6 +653,7 @@ class MainActivity : Activity() {
     private fun toggleDemo() {
         if (NavBus.demo) {
             NavBus.demo = false
+            NavBus.onServiceWake?.invoke()
             NavLog.i("demo off")
             render()
             return
@@ -660,6 +661,7 @@ class MainActivity : Activity() {
         requestPerms {
             if (!NavBus.serviceRunning) NavForegroundService.startByUser(this)
             NavBus.demo = true
+            NavBus.onServiceWake?.invoke()
             NavLog.i("demo on")
             render()
         }

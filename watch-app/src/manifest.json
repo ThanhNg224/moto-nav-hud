@@ -1,8 +1,8 @@
 {
   "package": "dev.motonavhud.app",
   "name": "MotoNav",
-  "versionName": "0.3.0",
-  "versionCode": 4,
+  "versionName": "0.3.1",
+  "versionCode": 5,
   "icon": "/common/icon.png",
   "display": { "backgroundColor": "#000000" },
   "simulationVersion": "default",

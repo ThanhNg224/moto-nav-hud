@@ -44,11 +44,21 @@ class NavForegroundService : Service() {
     private var lastVerifyAt = 0L
     private var idleSince = 0L
     private var lastSubscribers = -1
+    private var lastActiveWork = false
 
     private val tick = object : Runnable {
         override fun run() {
-            step()
-            handler.postDelayed(this, TICK_MS)
+            if (!active) return
+            val nextMs = step()
+            if (active && nextMs > 0L) handler.postDelayed(this, nextMs)
+        }
+    }
+
+    private fun wakeTickNow() {
+        handler.post {
+            if (!active) return@post
+            handler.removeCallbacks(tick)
+            tick.run()
         }
     }
 
@@ -110,7 +120,14 @@ class NavForegroundService : Service() {
         }
 
         throttle = Throttle(clock = { SystemClock.elapsedRealtime() }, z = Random.nextInt(1, Int.MAX_VALUE))
-        ble = BlePeripheralServer(this, { NavBus.changed() }, { gen, reason -> handler.post { onBleFailure(gen, reason) } })
+        ble = BlePeripheralServer(
+            this,
+            {
+                NavBus.changed()
+                wakeTickNow()
+            },
+            { gen, reason -> handler.post { onBleFailure(gen, reason) } },
+        )
         transports += ble
         val err = ble.start()
         if (err != null) {
@@ -127,8 +144,8 @@ class NavForegroundService : Service() {
         NavBus.bleStatus = "đang khởi động BLE"
         NavBus.warning = ""
         NavBus.autoStartGate.onServiceStarted()
+        NavBus.onServiceWake = { wakeTickNow() }
         registerReceiver(btReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
-        acquireWakeLock()
         NavBus.serviceRunning = true
         NavBus.idleRemainingSec = -1
         NavBus.changed()
@@ -172,20 +189,33 @@ class NavForegroundService : Service() {
         if (err != null) onBleFailure(ble.currentGeneration, err)
     }
 
-    /** Giữ CPU thức khi tắt màn hình để heartbeat 1 Hz không bị treo; có timeout và gia hạn định kỳ. */
-    private fun acquireWakeLock() {
+    /** Giữ CPU thức khi có đồng hồ nối hoặc Maps/Demo đang chạy; thả WakeLock lúc chờ rảnh để tiết kiệm pin. */
+    private fun syncWakeLock(needed: Boolean, now: Long) {
+        if (!needed) {
+            wakeLock?.let { if (it.isHeld) it.release() }
+            wakeLockRenewAt = 0L
+            return
+        }
+        if (wakeLock?.isHeld == true && now < wakeLockRenewAt) return
         val pm = getSystemService(PowerManager::class.java)
         val wl = wakeLock ?: pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "motonavhud:heartbeat").also {
             it.setReferenceCounted(false)
             wakeLock = it
         }
         wl.acquire(WAKE_LOCK_TIMEOUT_MS)
-        wakeLockRenewAt = SystemClock.elapsedRealtime() + WAKE_LOCK_TIMEOUT_MS / 2
+        wakeLockRenewAt = now + WAKE_LOCK_TIMEOUT_MS / 2
     }
 
-    private fun step() {
+    /** Trả chu kỳ tick tiếp theo (ms), hoặc -1 nếu service đang dừng. */
+    private fun step(): Long {
         val now = SystemClock.elapsedRealtime()
-        if (now >= wakeLockRenewAt) acquireWakeLock()
+        val subs = ble.subscriberCount
+        val activeWork = NavBus.demo || NavBus.mapsState.k != NavState.K_IDLE || subs > 0
+        syncWakeLock(activeWork, now)
+        if (activeWork && !lastActiveWork && subs == 0) ble.boostAdvertisingIfWaiting()
+        lastActiveWork = activeWork
+        if (!activeWork) ble.stepDownAdvertisingIfIdle(now)
+
         if (NavBus.demo) {
             if (demoStart == 0L) demoStart = now
             throttle.offer(demoState(now - demoStart), now)
@@ -206,26 +236,28 @@ class NavForegroundService : Service() {
                 throttle.offer(NavBus.mapsState, NavBus.mapsStateAt)
             }
         }
-        if (ble.isAdvertising) bleRetries = 0
-        // Kiểm tra auto-stop độc lập với throttle.poll() trên mỗi nhịp 200 ms.
+        if (ble.isAdvertising || subs > 0) bleRetries = 0
+        // Kiểm tra auto-stop độc lập với throttle.poll() trên mỗi nhịp.
         val autoStopMin = Prefs.autoStopMinutes(this)
         if (autoStopMin > 0 && NavBus.currentState.k == NavState.K_IDLE && !NavBus.demo) {
             if (idleSince == 0L) idleSince = now
             val remainMs = autoStopMin * 60_000L - (now - idleSince)
             if (remainMs <= 0L) {
+                active = false
                 NavLog.i("auto-stop idle=${autoStopMin}m")
                 NavBus.bleStatus = "tự dừng sau $autoStopMin phút chờ"
                 NavBus.idleRemainingSec = -1
                 NavBus.changed()
                 stopSelf()
-                return
+                return -1L
             }
             NavBus.idleRemainingSec = ((remainMs + 999) / 1000).toInt()
         } else {
             idleSince = 0L
             NavBus.idleRemainingSec = -1
         }
-        val e = throttle.poll() ?: return
+        val nextTickMs = if (activeWork) FAST_TICK_MS else IDLE_TICK_MS
+        val e = throttle.poll() ?: return nextTickMs
         val rendered = e.render(now)
         NavBus.currentState = rendered.state
         if (rendered.state.k != NavState.K_IDLE) {
@@ -238,10 +270,10 @@ class NavForegroundService : Service() {
         val build = { limit: Int -> buildPayload(e, limit) }
         transports.forEach { it.send(build) }
         logPayload(e, now)
-        val subs = ble.subscriberCount
-        NavBus.subscribers = subs
-        if (subs != lastSubscribers) {
-            lastSubscribers = subs
+        val subsNow = ble.subscriberCount
+        NavBus.subscribers = subsNow
+        if (subsNow != lastSubscribers) {
+            lastSubscribers = subsNow
             NavTileService.requestRefresh(this)
         }
         // Chỉ serialize bản xem trước khi MainActivity đang mở: tiết kiệm CPU/RAM khi tắt màn hình bỏ túi.
@@ -250,6 +282,7 @@ class NavForegroundService : Service() {
             NavBus.lastPayload = preview?.let { String(it, Charsets.UTF_8) } ?: "(không vừa)"
             NavBus.changed()
         }
+        return if (activeWork || subsNow > 0 || rendered.state.k != NavState.K_IDLE) FAST_TICK_MS else IDLE_TICK_MS
     }
 
     /** Ghi log ngay khi k/m/i đổi; nhịp đều không đổi chỉ ghi tối đa 1 dòng mỗi 30 s để không spam logcat. */
@@ -290,6 +323,7 @@ class NavForegroundService : Service() {
 
     override fun onDestroy() {
         active = false
+        NavBus.onServiceWake = null
         cancelRetry()
         NavLog.i("service stop")
         handler.removeCallbacks(tick)
@@ -314,7 +348,8 @@ class NavForegroundService : Service() {
         private const val CHANNEL_ID = "nav_service"
         private const val ACTION_STOP = "dev.motonavhud.app.ACTION_STOP"
         private const val NOTIF_ID = 1
-        private const val TICK_MS = 200L
+        private const val FAST_TICK_MS = 200L
+        private const val IDLE_TICK_MS = 1000L
         private const val MAX_BLE_RETRIES = 3
         private const val DEMO_STEP_MS = 4000L
         private const val VERIFY_ALIVE_MS = 3000L

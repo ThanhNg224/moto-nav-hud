@@ -513,7 +513,7 @@ test('BLE: máy skip giữ lại được thử ở hạn quét nếu chưa tớ
   tr.stop()
 })
 
-test('BLE: pin loại không tính matched; biến thể fallback có hạn quét riêng', (t) => {
+test('BLE: pin loại không tính matched; seen > 0 giữ nguyên V3 (không nhảy sang bộ lọc mù), seen === 0 mới đổi biến thể', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'] })
   const m = mockBle()
   const tr = bleT.create({ onMessage: () => false, onStatus() {}, onLost() {} }, m.api)
@@ -522,10 +522,14 @@ test('BLE: pin loại không tính matched; biến thể fallback có hạn qué
   cfg.BLE_PINNED_ADDRESS = 'CC:DD'
   try {
     tr.start()
-    m.onFound([{ deviceId: 'AA:BB', data: advWith([]) }]) // pin loại
+    m.onFound([{ deviceId: 'AA:BB', data: advWith([]) }]) // seen=1, pin loại => matched=0
     t.mock.timers.tick(8000)
     t.mock.timers.tick(1000)
-    assert.notStrictEqual(scans()[1], scans()[0]) // đã đổi biến thể
+    assert.strictEqual(scans()[1], scans()[0]) // scanner vẫn thấy thiết bị => giữ V3 để nối ngay khi ĐT phát BLE
+    // Nếu 1 lượt quét không thấy thiết bị nào (seen === 0) mới đổi sang biến thể kế tiếp
+    t.mock.timers.tick(8000)
+    t.mock.timers.tick(1500)
+    assert.notStrictEqual(scans()[2], scans()[0])
     tr.stop()
     // fallback sau 7.9 s vẫn được nguyên hạn quét
     cfg.BLE_PINNED_ADDRESS = ''

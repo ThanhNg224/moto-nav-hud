@@ -6,7 +6,7 @@ var hud = require('./hud-logic.js')
 var L = require('./log.js')
 
 var SERVICE = '6e4f0001-b5a3-f393-e0a9-e50e24dcca9e'
-var SKIP_WAIT_MS = 3000
+var SKIP_WAIT_MS = 1200
 var VFAIL_TTL_MS = 60000   // biến thể quét đã fail được thử lại sau ngần này
 var NAV_CHAR = '6e4f0002-b5a3-f393-e0a9-e50e24dcca9e'
 
@@ -135,11 +135,24 @@ function create(cb, api) {
     }
   }
 
+  function stopTicker() {
+    if (ticker) { clearInterval(ticker); ticker = null }
+  }
+
+  function startTicker() {
+    stopTicker()
+    if (!cfg.DEBUG_STATUS) return
+    ticker = setInterval(function () {
+      if (running && phase === 'scan') { try { status(scanText()) } catch (e) {} }
+    }, 1000)
+  }
+
   function releaseScanner() {
     var sc = scanner, id = subId
     scanner = null
     subId = null
     scanTok++   // vô hiệu hóa mọi callback quét còn treo
+    stopTicker()
     if (skipTimer) { clearTimeout(skipTimer); skipTimer = null }
     if (sc) {
       try { if (id != null) sc.unsubscribeBLEDeviceFind(id) } catch (e) {}
@@ -240,7 +253,7 @@ function create(cb, api) {
               if (!fresh) fresh = results[n]
             } else if (!again) again = results[n]
           }
-          status(scanText())
+          if (cfg.DEBUG_STATUS) status(scanText())
           // ưu tiên máy chưa thử; máy đã thất bại chỉ được chọn lại sau SKIP_WAIT_MS khi không còn máy mới
           if (again) held = again
           var r = fresh || (again && Date.now() - scanAt >= SKIP_WAIT_MS ? again : null)
@@ -267,10 +280,14 @@ function create(cb, api) {
           L.log('scan deadline', 'seen=' + seen, 'matched=' + matched)
           if (held) { choose(held); return }
           if (matched === 0) {
-            triedV[VARIANTS[curV].id] = true
-            var nv = nextV(curV)
-            if (nv >= 0) curV = nv
-            else resetVariants()
+            // Chỉ đổi biến thể khi scanner KHÔNG trả về thiết bị nào (seen === 0);
+            // nếu seen > 0 nghĩa là scanner hiện tại (V3) vẫn hoạt động tốt, chỉ là điện thoại chưa phát BLE.
+            if (seen === 0) {
+              triedV[VARIANTS[curV].id] = true
+              var nv = nextV(curV)
+              if (nv >= 0) curV = nv
+              else resetVariants()
+            }
             scheduleRetry('không thấy máy (' + seen + ' kq)')
           } else scheduleRetry('chỉ thấy máy đã thử')
         }), cfg.BLE_FIRST_FRAME_MS)
@@ -295,6 +312,7 @@ function create(cb, api) {
       launch(curV)
       if (my !== gen) return   // mọi startBLEScan đều lỗi: scanner đã đóng, không báo quét/watchdog
       phase = 'scan'
+      startTicker()
       status(scanText())
     } catch (e) {
       scheduleRetry('scan ex ' + e)
@@ -401,9 +419,6 @@ function create(cb, api) {
       running = true
       retry = 0
       L.log('ble start')
-      ticker = setInterval(function () {
-        if (running && phase === 'scan') { try { status(scanText()) } catch (e) {} }
-      }, 1000)
       gotFrame = false
       begin()
     },
@@ -411,7 +426,7 @@ function create(cb, api) {
       L.log('ble stop')
       running = false
       phase = ''
-      if (ticker) { clearInterval(ticker); ticker = null }
+      stopTicker()
       if (retryTimer) { clearTimeout(retryTimer); retryTimer = null }
       closeAttempt()
     }

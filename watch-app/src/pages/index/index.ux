@@ -400,6 +400,7 @@ let live = hud.createState()   // trạng thái tin thật
 let demo = null                // trạng thái chạy thử cục bộ (tách khỏi live); null = không chạy
 let transports = []
 let renderTimer = null
+let renderMs = 0
 let demoTimer = null
 let demoStepIdx = 0
 let demoSubTick = 0
@@ -582,9 +583,9 @@ export default {
       onDiag: (d) => { diagC = d; self.refreshStatus() },
       onLost: () => self.onLost(tag)
     })
-    transports = [mk(ic, 'A'), mk(ble, 'C')]
+    transports = cfg.ENABLE_INTERCONNECT ? [mk(ic, 'A'), mk(ble, 'C')] : [mk(ble, 'C')]
     transports.forEach((t) => { try { t.start() } catch (e) { extra = 'start ' + e } })
-    renderTimer = setInterval(() => self.render(), 500)
+    this.syncRenderTimer(false)
     tickN = 0
     if (cfg.DEBUG_STATUS) {
       tickTimer = setInterval(() => { tickN++; self.refreshStatus() }, 1000)
@@ -593,10 +594,19 @@ export default {
     this.render()
   },
 
+  // Tiết kiệm CPU/pin: 500 ms khi đang dẫn đường/chạy thử (bắt kịp ngưỡng stale 3 s), 1500 ms khi đang chờ rảnh
+  syncRenderTimer(fast) {
+    const want = fast ? 500 : 1500
+    if (renderTimer && renderMs === want) return
+    if (renderTimer) { clearInterval(renderTimer); renderTimer = null }
+    renderMs = want
+    renderTimer = setInterval(() => this.render(), want)
+  },
+
   stopAll(release) {
     transports.forEach((t) => { try { t.stop() } catch (e) {} })
     transports = []
-    if (renderTimer) { clearInterval(renderTimer); renderTimer = null }
+    if (renderTimer) { clearInterval(renderTimer); renderTimer = null; renderMs = 0 }
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
     this.stopDemo()
     if (buzz) buzz.cancel()
@@ -692,6 +702,7 @@ export default {
     this.setField('street', v.exitBadge ? v.road : v.street)
     const bot = v.mode === 'nav' ? (showClock ? 'Giờ ' + clockStr() : v.bottom) : ''
     this.setField('bottomText', bot)
+    this.syncRenderTimer(!!demo || v.mode !== 'waiting')
     this.refreshStatus()
   },
 
