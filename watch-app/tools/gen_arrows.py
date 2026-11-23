@@ -1,36 +1,46 @@
 #!/usr/bin/env python3
-"""Sinh src/common/arrows/m00..m13.png (160x160, trắng trên nền trong suốt). Chỉ dùng stdlib.
+"""Sinh src/common/arrows/m00..m13.png (108x108, 1:1 cho <image class="arrow"> trên Watch S5)
+và src/common/icon.png (160x160 cho app drawer). Chỉ dùng stdlib.
 
 Mọi mũi tên cùng một ngôn ngữ hình học: thân dày đều W (đường gấp khúc bo góc) + đầu tam giác cân bo nhẹ,
-tất cả là hợp (union) của các đa giác nên liền khối. Sau khi dựng, hình được căn giữa ô 160x160.
+căn giữa quang học và vừa khít vòng tròn an toàn bên trong khung dial 132x132.
 """
 import math, os, struct, zlib
 
-SIZE = 160
-SS = 4  # supersample
-N = SIZE * SS
-W = 22        # độ dày thân
-HL = 36       # chiều dài đầu mũi tên
-HW = 58       # bề rộng đầu mũi tên
+SIZE = 108    # 1:1 với <image class="arrow"> (108x108 px) — tránh Vela/LVGL crop khi không scale ảnh
+ICON_SIZE = 160
+SS = 4        # supersample 4x cho viền mượt
+W = 20        # độ dày thân (trong hệ tọa độ thiết kế 160x160)
+HL = 32       # chiều dài đầu mũi tên
+HW = 52       # bề rộng đầu mũi tên
 HR = 3        # bo góc đầu
 
 
-def png(path, alpha_rows):
+def write_rgba_png(path, size, rgba_rows):
     raw = bytearray()
-    for row in alpha_rows:
+    for row in rgba_rows:
         raw.append(0)
-        for a in row:
-            raw += bytes((255, 255, 255, a))
+        raw += row
     def chunk(t, d):
         c = struct.pack('>I', len(d)) + t + d
         return c + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
-    data = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', SIZE, SIZE, 8, 6, 0, 0, 0)) \
+    data = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 6, 0, 0, 0)) \
         + chunk(b'IDAT', zlib.compress(bytes(raw), 9)) + chunk(b'IEND', b'')
     with open(path, 'wb') as f:
         f.write(data)
 
 
-# ---------- hình học: mỗi hình là danh sách đa giác (list điểm) ----------
+def png(path, size, alpha_rows):
+    rgba_rows = []
+    for row in alpha_rows:
+        r = bytearray()
+        for a in row:
+            r += bytes((255, 255, 255, a))
+        rgba_rows.append(r)
+    write_rgba_png(path, size, rgba_rows)
+
+
+# ---------- hình học: mỗi hình là danh sách đa giác (list điểm trong không gian 160x160) ----------
 
 def circle(cx, cy, r, n=32):
     return [(cx + r * math.cos(2 * math.pi * i / n), cy + r * math.sin(2 * math.pi * i / n)) for i in range(n)]
@@ -52,6 +62,8 @@ def stroke(pts, w, closed=False):
 
 def fillet(pts, r):
     """Bo tròn các góc của đường gấp khúc bằng cung bán kính r."""
+    if r <= 0 or len(pts) < 3:
+        return list(pts)
     out = [pts[0]]
     for i in range(1, len(pts) - 1):
         a, b, c = pts[i - 1], pts[i], pts[i + 1]
@@ -113,37 +125,37 @@ def mirror(polys):
 
 def shape(m):
     if m == 0:  # không rõ: vòng tròn
-        return stroke(circle(80, 80, 44, 48)[:], 20, closed=True)
-    if m == 1:
-        return arrow([(80, 150), (80, 54)], 0)
-    if m == 3:
-        return arrow([(114, 150), (114, 74), (78, 74)], 18)
-    if m == 6:
-        return mirror(shape(3))
-    if m == 2:
-        return arrow([(100, 150), (100, 104), (72, 76)], 18)
-    if m == 5:
+        return stroke(circle(80, 80, 42, 48), 18, closed=True)
+    if m == 1:  # đi thẳng
+        return arrow([(80, 146), (80, 56)], 0)
+    if m == 2:  # chếch trái 45°
+        return arrow([(100, 146), (100, 102), (68, 70)], 18)
+    if m == 3:  # rẽ trái 90°
+        return arrow([(112, 146), (112, 74), (74, 74)], 18)
+    if m == 4:  # ngoặt trái gắt 135° (chuẩn Google Maps / Material turn_sharp_left: góc bẻ sắc, tách rõ thân đứng & nhánh chéo)
+        return arrow([(116, 144), (116, 44), (56, 104)], 9)
+    if m == 5:  # chếch phải
         return mirror(shape(2))
-    if m == 4:
-        return arrow([(126, 148), (126, 44), (62, 108)], 14)
-    if m == 7:
+    if m == 6:  # rẽ phải 90°
+        return mirror(shape(3))
+    if m == 7:  # ngoặt phải gắt 135°
         return mirror(shape(4))
-    if m == 8:  # quay đầu: chữ U
-        return arrow([(112, 150), (112, 60), (48, 60), (48, 96)], 32)
-    if m == 9:  # vòng xuyến: vòng + đường vào + lối ra phía trên
-        ring = stroke(circle(80, 104, 28, 48), 20, closed=True)
-        return ring + stroke([(80, 152), (80, 118)], W) + arrow([(80, 80), (80, 52)], 0)
-    if m == 10:  # giữ trái: thân thẳng ngắn + nhánh chếch 30 độ liền khối
-        prong = stroke([(86, 150), (86, 84)], W) + [circle(86, 84, W / 2, 16)]
-        return prong + arrow([(86, 150), (86, 114), (56, 78)], 14)
-    if m == 11:
+    if m == 8:  # quay đầu: chữ U vòng rộng (khác hẳn góc gắt của m04/m07)
+        return arrow([(114, 146), (114, 62), (46, 62), (46, 98)], 34)
+    if m == 9:  # vòng xuyến: vòng tròn rõ + chân vào + mũi tên thoát phía trên
+        ring = stroke(circle(80, 100, 26, 48), 18, closed=True)
+        return ring + stroke([(80, 146), (80, 118)], W) + arrow([(80, 78), (80, 54)], 0)
+    if m == 10:  # giữ trái: nhánh thẳng ngắn gọn + mũi tên chính chếch trái rõ
+        prong = stroke([(94, 146), (94, 80)], 14) + [circle(94, 80, 7, 16)]
+        return prong + arrow([(94, 146), (94, 114), (60, 76)], 14)
+    if m == 11:  # giữ phải
         return mirror(shape(10))
     if m == 12:  # đến nơi: cờ
-        pole = [(38, 24), (50, 24), (50, 148), (38, 148)]
-        flag = [(50, 26), (128, 26), (110, 54), (128, 82), (50, 82)]
-        return [pole, flag, circle(44, 24, 6, 12)]
+        pole = [(40, 26), (52, 26), (52, 144), (40, 144)]
+        flag = [(52, 28), (126, 28), (108, 56), (126, 84), (52, 84)]
+        return [pole, flag, circle(46, 26, 6, 12)]
     if m == 13:  # xuất phát: chấm + mũi tên lên
-        return [circle(80, 134, 18, 32)] + arrow([(80, 108), (80, 62)], 0)
+        return [circle(80, 132, 16, 32)] + arrow([(80, 106), (80, 62)], 0)
     raise ValueError(m)
 
 
@@ -153,19 +165,25 @@ def bbox(polys):
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def center(polys):
+def fit_circle(polys, out_size, safe_radius):
+    """Căn giữa theo bounding box rồi co đều để mọi đỉnh nằm gọn trong đường tròn safe_radius quanh tâm out_size/2."""
     x0, y0, x1, y1 = bbox(polys)
-    k = min(1.0, 148 / max(x1 - x0, y1 - y0))
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-    return [[(80 + (x - cx) * k, 80 + (y - cy) * k) for x, y in p] for p in polys]
+    max_r = max(math.hypot(x - cx, y - cy) for p in polys for x, y in p) or 1.0
+    # Giữ tỷ lệ đồng nhất giữa các mũi tên nhưng đảm bảo không đỉnh nào chạm viền tròn
+    base_scale = out_size / 160.0
+    k = min(base_scale * 1.12, safe_radius / max_r)
+    half = out_size / 2.0
+    return [[(half + (x - cx) * k, half + (y - cy) * k) for x, y in p] for p in polys]
 
 
-def rasterize(polys):
-    mask = [bytearray(N) for _ in range(N)]
+def rasterize(polys, size):
+    n = size * SS
+    mask = [bytearray(n) for _ in range(n)]
     for poly in polys:
         p = [(x * SS, y * SS) for x, y in poly]
         ys = [y for _, y in p]
-        for row in range(max(0, int(min(ys))), min(N, int(max(ys)) + 1)):
+        for row in range(max(0, int(min(ys))), min(n, int(max(ys)) + 1)):
             yc = row + 0.5
             xs = []
             for i in range(len(p)):
@@ -175,13 +193,13 @@ def rasterize(polys):
                     xs.append(x1 + (yc - y1) * (x2 - x1) / (y2 - y1))
             xs.sort()
             for k in range(0, len(xs) - 1, 2):
-                a, b = max(0, int(round(xs[k]))), min(N, int(round(xs[k + 1])))
+                a, b = max(0, int(round(xs[k]))), min(n, int(round(xs[k + 1])))
                 if b > a:
                     mask[row][a:b] = b'\x01' * (b - a)
     rows = []
-    for y in range(SIZE):
+    for y in range(size):
         r = []
-        for x in range(SIZE):
+        for x in range(size):
             t = 0
             for sy in range(SS):
                 t += sum(mask[y * SS + sy][x * SS:(x + 1) * SS])
@@ -190,8 +208,34 @@ def rasterize(polys):
     return rows
 
 
-def render(m):
-    return rasterize(center(shape(m)))
+def render(m, size=SIZE, safe_radius=46.0):
+    return rasterize(fit_circle(shape(m), size, safe_radius), size)
+
+
+def render_app_icon(path):
+    """Sinh icon ứng dụng 160x160 nền tròn tối + vòng ngọc lam + mũi tên trắng sắc nét."""
+    arrow_alpha = render(1, size=ICON_SIZE, safe_radius=54.0)
+    cx = cy = ICON_SIZE / 2.0
+    rows = []
+    for y in range(ICON_SIZE):
+        row = bytearray()
+        for x in range(ICON_SIZE):
+            d = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
+            if d > 78.5:
+                row += bytes((0, 0, 0, 0))
+                continue
+            edge_a = max(0.0, min(1.0, 78.5 - d))
+            if d >= 71.0:
+                r, g, b = 45, 212, 191  # #2dd4bf teal ring
+            else:
+                r, g, b = 15, 23, 42    # #0f172a deep slate
+            aa = arrow_alpha[y][x] / 255.0
+            r = round(r * (1 - aa) + 255 * aa)
+            g = round(g * (1 - aa) + 255 * aa)
+            b = round(b * (1 - aa) + 255 * aa)
+            row += bytes((r, g, b, round(edge_a * 255)))
+        rows.append(row)
+    write_rgba_png(path, ICON_SIZE, rows)
 
 
 def main():
@@ -199,9 +243,8 @@ def main():
     out = os.path.join(root, 'src', 'common', 'arrows')
     os.makedirs(out, exist_ok=True)
     for m in range(14):
-        png(os.path.join(out, 'm%02d.png' % m), render(m))
-    with open(os.path.join(out, 'm01.png'), 'rb') as f, open(os.path.join(root, 'src', 'common', 'icon.png'), 'wb') as g:
-        g.write(f.read())
+        png(os.path.join(out, 'm%02d.png' % m), SIZE, render(m))
+    render_app_icon(os.path.join(root, 'src', 'common', 'icon.png'))
 
 
 if __name__ == '__main__':

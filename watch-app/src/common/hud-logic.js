@@ -248,13 +248,22 @@ var DEMO = [
   [1, 0, 850, 'Nguyễn Văn Linh'], [2, 0, 420, 'Nguyễn Hữu Thọ'], [3, 0, 200, 'Lê Văn Việt'],
   [4, 0, 120, 'Võ Văn Ngân'], [5, 0, 90, 'Phạm Văn Đồng'], [6, 0, 50, 'Trường Chinh'],
   [7, 0, 30, 'Cộng Hòa'], [8, 0, 1500, 'Quay đầu tại ngã tư'], [9, 2, 180, 'Vòng xuyến Dân Chủ'],
-  [10, 0, 2300, 'Xa lộ Hà Nội'], [11, 0, 640, 'Mai Chí Thọ'], [13, 0, 0, 'Xuất phát'], [12, 0, 0, 'Điểm đến']
+  [10, 0, 2300, 'Xa lộ Hà Nội'], [11, 0, 640, 'Mai Chí Thọ'], [13, 0, 250, 'Xuất phát'], [12, 0, 0, 'Điểm đến']
 ]
-function demoMessage(i, q) {
+function demoMessage(i, q, subTick, ticksPerStep) {
   var a = DEMO[i % DEMO.length]
+  var isArrived = a[0] === 12
+  var d = a[2]
+  if (!isArrived && ticksPerStep > 1) {
+    var frac = Math.max(0, Math.min(1, (subTick || 0) / (ticksPerStep - 1)))
+    // Với bước rẽ gần (<= 300 m), đếm ngược mượt từ ~260 m xuống ~30 m để vòng cung tiến độ & ngưỡng rung hoạt động đầy đủ
+    var startD = a[2] <= 300 ? Math.max(a[2], 260) : a[2]
+    var endD = a[2] <= 300 ? Math.min(a[2], 30) : Math.round(a[2] * 0.7)
+    d = Math.round(startD + (endD - startD) * frac)
+  }
   return {
-    v: 1, z: 1, q: q, i: i, a: 0, p: DEFAULTS.PAIR_TOKEN, k: a[0] === 12 ? 3 : 1, m: a[0], x: a[1], d: a[2], s: a[3],
-    e: '12:45', r: 4200 - (i % DEMO.length) * 300
+    v: 1, z: 1, q: q, i: i, a: 0, p: DEFAULTS.PAIR_TOKEN, k: isArrived ? 3 : 1, m: a[0], x: a[1], d: d, s: a[3],
+    e: '12:45', r: Math.max(0, 4200 - (i % DEMO.length) * 300)
   }
 }
 

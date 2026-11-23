@@ -21,5 +21,7 @@ module.exports = {
   // Ghim địa chỉ BLE của điện thoại (vd 'AA:BB:CC:DD:EE:FF'); '' = nhận máy đầu tiên khớp service
   BLE_PINNED_ADDRESS: '',
   BLE_BACKOFF_MS: [1000, 2000, 4000, 8000, 15000],
-  DEMO_STEP_MS: 4000
+  // Mỗi bước demo kéo dài 4 s, phát nhịp 1 s (luôn nhỏ hơn STALE_MS = 3000 để không bao giờ báo MẤT DỮ LIỆU)
+  DEMO_STEP_MS: 4000,
+  DEMO_TICK_MS: 1000
 }

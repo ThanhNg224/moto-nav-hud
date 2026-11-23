@@ -1,31 +1,38 @@
 <template>
   <div class="page" onswipe="onSwipe">
-    <!-- Vòng cung tiến độ dọc viền tròn (Beeline / Wear OS HUD) -->
+    <!-- Vòng cung tiến độ 270° dọc viền tròn (Beeline / Wear OS HUD) -->
     <progress class="ring {{ringClass}}" type="arc" percent="{{arcPercent}}"></progress>
 
-    <!-- Chế độ dẫn đường: khung tròn nổi bật cho mũi tên + huy hiệu lối ra vòng xuyến -->
-    <div class="dial {{dialClass}}" if="{{arrow}}">
-      <image class="arrow" src="{{arrow}}"></image>
+    <!-- Chế độ dẫn đường: vòng tròn nền & mũi tên 108x108 đồng tâm tuyệt đối tại (240, 98) -->
+    <div class="dial {{dialClass}}" if="{{arrow}}"></div>
+    <image class="arrow" src="{{arrow}}" if="{{arrow}}"></image>
+
+    <!-- Huy hiệu lối ra vòng xuyến: nằm tách biệt bên phải dial, không đè dial hay viền tròn -->
+    <div class="exit-pill" if="{{exitBadge}}">
+      <text class="exit-txt">{{exitBadge}}</text>
     </div>
-    <text class="exit-pill" if="{{exitBadge}}">{{exitBadge}}</text>
 
     <!-- Khoảng cách lớn & tên đường -->
     <text class="dist {{distClass}}" if="{{distance}}">{{distance}}</text>
     <text class="street" if="{{street}}">{{street}}</text>
 
-    <!-- Viên thuốc ETA / km còn lại (chạm để xen kẽ đồng hồ giờ hiện tại) -->
+    <!-- Viên thuốc ETA / km còn lại (chạm để chuyển đổi đồng hồ giờ hiện tại) -->
     <div class="pill-wrap" if="{{bottomText}}" onclick="onToggleClock">
       <text class="bottom">{{bottomText}}</text>
     </div>
 
     <!-- Màn chờ / Tính lại / Đã đến / Mất dữ liệu -->
     <text class="banner {{bannerClass}}" if="{{banner}}">{{banner}}</text>
-    <text class="hint" if="{{hint}}">{{hint}}</text>
+    <text class="hint {{hintClass}}" if="{{hint}}">{{hint}}</text>
 
     <!-- Nút nhanh ở màn chờ (tránh chạm nhầm Demo khi đang chạy xe) -->
     <div class="wait-actions" if="{{showWaitActions}}">
-      <text class="wbtn wbtn-demo" onclick="onTapDemo">▶ Demo</text>
-      <text class="wbtn wbtn-cfg" onclick="onOpenMenu">⚙ Cài đặt</text>
+      <div class="wbtn wbtn-demo" onclick="onTapDemo">
+        <text class="wbtn-txt">▶ Demo</text>
+      </div>
+      <div class="wbtn wbtn-cfg" onclick="onOpenMenu">
+        <text class="wbtn-txt">⚙ Cài đặt</text>
+      </div>
     </div>
 
     <!-- Thanh trạng thái đáy (có chấm màu + dư chiều cao cho dấu tiếng Việt) -->
@@ -39,22 +46,30 @@
     <!-- Bảng Cài đặt nhanh (vuốt lên hoặc bấm Cài đặt) -->
     <div class="menu" if="{{menuOpen}}">
       <text class="menu-title">Cài đặt HUD</text>
-      <text class="mbtn mbtn-accent" onclick="onCyclePreset">Rung: {{presetLabel}}</text>
-      <text class="mbtn" onclick="onToggleNight">{{nightLabel}}</text>
-      <text class="mbtn" onclick="onToggleDemoFromMenu">{{demoBtnLabel}}</text>
-      <text class="mbtn mbtn-close" onclick="onCloseMenu">Đóng</text>
+      <div class="mbtn mbtn-accent" onclick="onCyclePreset">
+        <text class="mbtn-txt">Rung: {{presetLabel}}</text>
+      </div>
+      <div class="mbtn" onclick="onToggleNight">
+        <text class="mbtn-txt">{{nightLabel}}</text>
+      </div>
+      <div class="mbtn" onclick="onToggleDemoFromMenu">
+        <text class="mbtn-txt">{{demoBtnLabel}}</text>
+      </div>
+      <div class="mbtn mbtn-close" onclick="onCloseMenu">
+        <text class="mbtn-txt">Đóng</text>
+      </div>
     </div>
   </div>
 </template>
 
 <style>
-/* Màn tròn 480x480 AMOLED (bán kính 240). Nền đen tuyệt đối tiết kiệm pin và giảm chói ban đêm */
+/* Màn tròn 480x480 AMOLED (tâm 240,240; bán kính 240). Nền đen tuyệt đối tiết kiệm pin & giảm chói đêm */
 .page {
   width: 480px;
   height: 480px;
   background-color: #000000;
 }
-/* Vòng cung 270° ôm mép trên mặt tròn (225° -> 135° theo chiều kim đồng hồ), chừa khoảng trống dưới cho trạng thái */
+/* Vòng cung 270° ôm mép trên (225° -> 135° theo chiều kim đồng hồ); mép trong vòng cung ở r = 223px */
 .ring {
   position: absolute;
   left: 0px;
@@ -66,7 +81,7 @@
   radius: 228px;
   start-angle: 225deg;
   total-angle: 270deg;
-  stroke-width: 12px;
+  stroke-width: 10px;
   layer-color: #161e2b;
   color: #2dd4bf;
 }
@@ -77,18 +92,16 @@
 .ring-arrived { color: #34d399; }
 .ring-stale { color: #ef4444; }
 
-/* Khung tròn chứa mũi tên trung tâm */
+/* Khung tròn chứa mũi tên: tâm (240, 98), mép trên y = 32 (r = 208px < 223px) */
 .dial {
   position: absolute;
-  left: 170px;
-  top: 28px;
-  width: 140px;
-  height: 140px;
-  border-radius: 70px;
+  left: 174px;
+  top: 32px;
+  width: 132px;
+  height: 132px;
+  border-radius: 66px;
   background-color: #101620;
   border: 3px solid #223044;
-  justify-content: center;
-  align-items: center;
 }
 .dial-far {
   background-color: #241d00;
@@ -98,31 +111,45 @@
   background-color: #2c100a;
   border: 3px solid #ff4d2d;
 }
+/* Ảnh PNG 108x108 hiển thị đúng tỷ lệ 1:1, đồng tâm tuyệt đối với .dial tại (240, 98) */
 .arrow {
-  width: 106px;
-  height: 106px;
+  position: absolute;
+  left: 186px;
+  top: 44px;
+  width: 108px;
+  height: 108px;
+  object-fit: contain;
 }
+
+/* Huy hiệu lối ra vòng xuyến: cách mép phải dial 10px, cách mép trên dist 28px, góc ngoài r = 211.7px < 223px */
 .exit-pill {
   position: absolute;
-  left: 280px;
-  top: 32px;
-  width: 92px;
-  height: 38px;
-  border-radius: 19px;
+  left: 316px;
+  top: 106px;
+  width: 88px;
+  height: 36px;
+  border-radius: 18px;
   background-color: #ffd000;
-  color: #000000;
-  font-size: 22px;
+  justify-content: center;
+  align-items: center;
+}
+.exit-txt {
+  width: 84px;
+  height: 30px;
+  font-size: 21px;
   font-weight: bold;
+  color: #000000;
   text-align: center;
 }
 
+/* Khoảng cách: góc trên r = 208.1px < 223px */
 .dist {
   position: absolute;
   left: 44px;
-  top: 172px;
+  top: 170px;
   width: 392px;
-  height: 88px;
-  font-size: 72px;
+  height: 82px;
+  font-size: 68px;
   font-weight: bold;
   color: #ffffff;
   text-align: center;
@@ -130,13 +157,14 @@
 .dist-far { color: #ffd000; }
 .dist-near { color: #ff5a36; }
 
+/* Tên đường tối đa 2 dòng: góc dưới r = 202.3px < 223px */
 .street {
   position: absolute;
-  left: 64px;
-  top: 260px;
-  width: 352px;
+  left: 56px;
+  top: 254px;
+  width: 368px;
   height: 70px;
-  font-size: 27px;
+  font-size: 26px;
   font-weight: bold;
   color: #f1f5f9;
   text-align: center;
@@ -144,11 +172,12 @@
   text-overflow: ellipsis;
 }
 
+/* Viên thuốc ETA / km còn lại / giờ: góc dưới r = 193.8px < 223px */
 .pill-wrap {
   position: absolute;
-  left: 94px;
-  top: 336px;
-  width: 292px;
+  left: 100px;
+  top: 332px;
+  width: 280px;
   height: 42px;
   border-radius: 21px;
   background-color: #141c27;
@@ -156,9 +185,9 @@
   align-items: center;
 }
 .bottom {
-  width: 276px;
-  height: 34px;
-  font-size: 23px;
+  width: 264px;
+  height: 32px;
+  font-size: 22px;
   font-weight: bold;
   color: #cbd5e1;
   text-align: center;
@@ -166,62 +195,70 @@
   text-overflow: ellipsis;
 }
 
-/* Màn trạng thái (chờ / tính lại / đến / mất dữ liệu) */
+/* Màn trạng thái (chờ / tính lại / đến / mất dữ liệu): góc trên r = 210.3px < 223px */
 .banner {
   position: absolute;
-  left: 44px;
-  top: 130px;
-  width: 392px;
-  height: 76px;
-  font-size: 46px;
+  left: 62px;
+  top: 128px;
+  width: 356px;
+  height: 68px;
+  font-size: 42px;
   font-weight: bold;
   color: #ffd000;
   text-align: center;
 }
+.banner-center { top: 180px; }
 .banner-wait { color: #ffffff; }
 .banner-stale { color: #ff5a36; }
 .banner-arrived { color: #34d399; }
 
 .hint {
   position: absolute;
-  left: 56px;
-  top: 210px;
-  width: 368px;
-  height: 44px;
-  font-size: 23px;
+  left: 64px;
+  top: 204px;
+  width: 352px;
+  height: 42px;
+  font-size: 22px;
   font-weight: bold;
   color: #94a3b8;
   text-align: center;
 }
+.hint-center { top: 256px; }
 
 .wait-actions {
   position: absolute;
-  left: 74px;
-  top: 278px;
-  width: 332px;
-  height: 64px;
+  left: 78px;
+  top: 274px;
+  width: 324px;
+  height: 60px;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
 }
 .wbtn {
-  width: 158px;
-  height: 60px;
-  border-radius: 30px;
-  font-size: 24px;
+  width: 154px;
+  height: 58px;
+  border-radius: 29px;
+  justify-content: center;
+  align-items: center;
+}
+.wbtn-demo { background-color: #0f766e; }
+.wbtn-cfg { background-color: #1e293b; }
+.wbtn-txt {
+  width: 146px;
+  height: 32px;
+  font-size: 22px;
   font-weight: bold;
   color: #ffffff;
   text-align: center;
 }
-.wbtn-demo { background-color: #0f766e; }
-.wbtn-cfg { background-color: #1e293b; }
 
-/* Dòng trạng thái đáy: chấm màu + chữ, rộng 276px nằm gọn dây cung tròn, cao 36px không cắt dấu Việt */
+/* Dòng trạng thái đáy: nằm trong khe mở đáy của vòng cung 270°, cao 38px không cắt dấu Việt */
 .st {
   position: absolute;
   left: 100px;
   width: 280px;
-  height: 30px;
+  height: 28px;
   font-size: 18px;
   font-weight: bold;
   color: #9be59b;
@@ -229,13 +266,13 @@
   lines: 1;
   text-overflow: ellipsis;
 }
-.st1 { top: 360px; }
+.st1 { top: 358px; }
 .st-row {
   position: absolute;
-  left: 100px;
-  top: 392px;
-  width: 280px;
-  height: 36px;
+  left: 115px;
+  top: 388px;
+  width: 250px;
+  height: 38px;
   flex-direction: row;
   justify-content: center;
   align-items: center;
@@ -265,9 +302,9 @@
 .st3 {
   position: absolute;
   left: 130px;
-  top: 424px;
+  top: 426px;
   width: 220px;
-  height: 30px;
+  height: 28px;
   font-size: 14px;
   font-weight: bold;
   color: #9be59b;
@@ -289,32 +326,38 @@
   align-items: center;
 }
 .menu-title {
-  width: 300px;
-  height: 44px;
-  font-size: 28px;
+  width: 280px;
+  height: 42px;
+  font-size: 26px;
   font-weight: bold;
   color: #ffffff;
   text-align: center;
   margin-bottom: 14px;
 }
 .mbtn {
-  width: 310px;
-  height: 60px;
-  border-radius: 30px;
+  width: 312px;
+  height: 56px;
+  border-radius: 28px;
   background-color: #1e293b;
-  color: #f8fafc;
-  font-size: 24px;
-  font-weight: bold;
-  text-align: center;
+  justify-content: center;
+  align-items: center;
   margin-bottom: 12px;
 }
 .mbtn-accent { background-color: #0369a1; }
 .mbtn-close {
-  width: 180px;
-  height: 54px;
-  border-radius: 27px;
+  width: 170px;
+  height: 52px;
+  border-radius: 26px;
   background-color: #334155;
   margin-bottom: 0px;
+}
+.mbtn-txt {
+  width: 296px;
+  height: 32px;
+  font-size: 22px;
+  font-weight: bold;
+  color: #f8fafc;
+  text-align: center;
 }
 </style>
 
@@ -339,7 +382,8 @@ let demo = null                // trạng thái demo cục bộ (tách khỏi li
 let transports = []
 let renderTimer = null
 let demoTimer = null
-let demoIdx = 0
+let demoStepIdx = 0
+let demoSubTick = 0
 let demoQ = 0
 let channel = ''
 let statusA = ''
@@ -377,6 +421,7 @@ export default {
     banner: 'Chờ chỉ đường',
     bannerClass: 'banner-wait',
     hint: 'Mở Google Maps trên điện thoại',
+    hintClass: '',
     showWaitActions: true,
     street: '',
     bottomText: '',
@@ -558,6 +603,15 @@ export default {
       : (v.mode === 'arrived' ? 'ring-arrived'
         : (v.mode === 'nav' ? (v.urgency === 'near' ? 'ring-near' : (v.urgency === 'far' ? 'ring-far' : 'ring-nav')) : 'ring-idle'))
 
+    const isWait = !demo && v.mode === 'waiting' && !v.distance && !v.street
+    const bannerBase = v.mode === 'stale' ? 'banner-stale'
+      : (v.mode === 'arrived' ? 'banner-arrived' : (v.mode === 'waiting' ? 'banner-wait' : ''))
+    const bannerCls = isWait ? bannerBase : (bannerBase + ' banner-center').trim()
+    const subHint = isWait ? 'Mở Google Maps trên điện thoại'
+      : (v.mode === 'stale' ? 'Kiểm tra điện thoại / Maps'
+        : (v.mode === 'arrived' ? 'Đã đến điểm đến'
+          : (v.mode === 'recalc' ? 'Đang tìm tuyến đường mới...' : '')))
+
     this.setField('arcPercent', v.arcPercent)
     this.setField('ringClass', ringCls)
     this.setField('dialClass', v.urgency === 'near' ? 'dial-near' : (v.urgency === 'far' ? 'dial-far' : ''))
@@ -566,9 +620,9 @@ export default {
     this.setField('distance', v.distance)
     this.setField('distClass', v.urgency === 'near' ? 'dist-near' : (v.urgency === 'far' ? 'dist-far' : ''))
     this.setField('banner', v.banner)
-    this.setField('bannerClass', v.mode === 'stale' ? 'banner-stale' : (v.mode === 'arrived' ? 'banner-arrived' : (v.mode === 'waiting' ? 'banner-wait' : '')))
-    const isWait = !demo && v.mode === 'waiting' && !v.distance && !v.street
-    this.setField('hint', isWait ? 'Mở Google Maps trên điện thoại' : '')
+    this.setField('bannerClass', bannerCls)
+    this.setField('hint', subHint)
+    this.setField('hintClass', isWait ? '' : 'hint-center')
     this.setField('showWaitActions', isWait)
     // Khi đã có huy hiệu LỐI X riêng, dòng street hiện tên đường gọn hơn
     this.setField('street', v.exitBadge ? v.road : v.street)
@@ -639,18 +693,26 @@ export default {
   startDemo() {
     demo = hud.createState()
     hud.applyPreset(demo, presetKey)
-    demoIdx = 0
+    demoStepIdx = 0
+    demoSubTick = 0
     demoQ = 0
     buzz.cancel()
+    const tickMs = cfg.DEMO_TICK_MS || 1000
+    const ticksPerStep = Math.max(1, Math.round((cfg.DEMO_STEP_MS || 4000) / tickMs))
     const step = () => {
+      if (!demo) return
       demoQ++
-      const r = hud.accept(demo, hud.parsePayload(hud.demoMessage(demoIdx, demoQ)), Date.now())
+      const r = hud.accept(demo, hud.parsePayload(hud.demoMessage(demoStepIdx, demoQ, demoSubTick, ticksPerStep)), Date.now())
       this.applyVibe(r)
-      demoIdx++
+      demoSubTick++
+      if (demoSubTick >= ticksPerStep) {
+        demoSubTick = 0
+        demoStepIdx++
+      }
       this.render()
     }
     step()
-    demoTimer = setInterval(step, cfg.DEMO_STEP_MS)
+    demoTimer = setInterval(step, tickMs)
     this.syncMenuLabels()
   },
 

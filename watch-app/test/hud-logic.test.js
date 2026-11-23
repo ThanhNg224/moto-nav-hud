@@ -177,3 +177,30 @@ test('rung mất dữ liệu chỉ sau khi đã nhận tin dẫn đường còn 
   assert.strictEqual(h.tick(st, 5000), 'lost')
   assert.strictEqual(h.tick(st, 6000), null)
 })
+
+test('local demo 1 Hz không bao giờ báo MẤT DỮ LIỆU và đếm ngược khoảng cách mượt', () => {
+  const cfg = require('../src/common/config.js')
+  assert.ok(cfg.DEMO_TICK_MS < cfg.STALE_MS, 'DEMO_TICK_MS phải nhỏ hơn STALE_MS')
+  const ticksPerStep = Math.max(1, Math.round(cfg.DEMO_STEP_MS / cfg.DEMO_TICK_MS))
+  const st = h.createState(cfg)
+  let q = 0
+  let stepIdx = 0
+  let sub = 0
+  for (let t = 0; t <= 60000; t += 500) {
+    if (t % cfg.DEMO_TICK_MS === 0) {
+      q++
+      const m = h.parsePayload(h.demoMessage(stepIdx, q, sub, ticksPerStep))
+      assert.ok(m)
+      assert.strictEqual(h.accept(st, m, t).accepted, true)
+      sub++
+      if (sub >= ticksPerStep) { sub = 0; stepIdx++ }
+    }
+    assert.strictEqual(h.tick(st, t), null, 'demo không được phát rung lost tại t=' + t)
+    assert.notStrictEqual(h.view(st, t).mode, 'stale', 'demo không được báo stale tại t=' + t)
+  }
+  // Bước vòng xuyến (index 8) đếm ngược từ 260m xuống 30m và giữ cùng mã bước i
+  const d0 = h.demoMessage(8, 1, 0, 4)
+  const d3 = h.demoMessage(8, 4, 3, 4)
+  assert.strictEqual(d0.i, d3.i)
+  assert.ok(d0.d > 200 && d3.d <= 50, 'khoảng cách bước gần phải đi qua cả 2 ngưỡng rung')
+})
