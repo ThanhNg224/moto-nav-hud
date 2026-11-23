@@ -173,9 +173,9 @@ class MainActivity : Activity() {
             addView(space(2))
             mapsCardSubHint(this)
         }
-        grid.addView(watchCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        grid.addView(watchCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         grid.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(dp(10), 1) })
-        grid.addView(mapsCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        grid.addView(mapsCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         info.addView(grid)
         info.addView(space(12))
 
