@@ -334,12 +334,30 @@ test('hud view urgency: >200m normal, <=200m far, <=50m near', () => {
   const st = h.createState()
   h.accept(st, msg({ q: 1, d: 300 }), 0)
   assert.strictEqual(h.view(st, 0).urgency, 'normal')
+  assert.strictEqual(h.view(st, 0).arcPercent, 40)
   h.accept(st, msg({ q: 2, d: 180 }), 100)
   assert.strictEqual(h.view(st, 100).urgency, 'far')
+  assert.strictEqual(h.view(st, 100).arcPercent, 64)
   h.accept(st, msg({ q: 3, d: 45 }), 200)
   assert.strictEqual(h.view(st, 200).urgency, 'near')
+  assert.strictEqual(h.view(st, 200).arcPercent, 91)
   h.accept(st, msg({ q: 4, m: 0, d: 30 }), 300)
   assert.strictEqual(h.view(st, 300).urgency, 'normal')
+})
+
+test('haptic presets: city/fast/off và exitBadge vòng xuyến', () => {
+  const st = h.createState()
+  h.applyPreset(st, 'city')
+  assert.strictEqual(h.accept(st, msg({ q: 1, i: 1, d: 170 }), 0).vibe, null)
+  assert.strictEqual(h.accept(st, msg({ q: 2, i: 1, d: 150 }), 10).vibe, 'far')
+  assert.strictEqual(h.accept(st, msg({ q: 3, i: 1, d: 40 }), 20).vibe, 'near')
+  h.applyPreset(st, 'off')
+  assert.strictEqual(h.accept(st, msg({ q: 4, i: 2, d: 30 }), 30).vibe, null)
+  assert.strictEqual(h.view(st, 30).urgency, 'near') // tắt rung vẫn hiện màu khẩn cấp
+  h.accept(st, msg({ q: 5, i: 3, m: 9, x: 2, d: 120, s: 'Phạm Văn Đồng' }), 40)
+  const v = h.view(st, 40)
+  assert.strictEqual(v.exitBadge, 'LỐI 2')
+  assert.strictEqual(v.road, 'Phạm Văn Đồng')
 })
 
 test('BLE: UUID chỉ khớp trong AD 0x06/0x07, không khớp trong manufacturer data; scan response nối sau được nhận', () => {

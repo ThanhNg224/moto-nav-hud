@@ -13,6 +13,8 @@ object NavBus {
     @Volatile var demo = false
     @Volatile var serviceRunning = false
     @Volatile var subscribers = 0
+    @Volatile var currentState: NavState = NavState.IDLE
+    @Volatile var idleRemainingSec = -1
     @Volatile var lastPayload = ""
     @Volatile var bleStatus = "chưa chạy"
     @Volatile var listenerConnected = false

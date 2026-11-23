@@ -1,0 +1,84 @@
+package dev.motonavhud.app
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.PendingIntent
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.service.quicksettings.Tile
+import android.service.quicksettings.TileService
+
+/** Ô bật/tắt nhanh Moto Nav HUD ngay trên thanh Quick Settings Android (1 chạm trước khi đi xe). */
+class NavTileService : TileService() {
+
+    private val onBusChange: () -> Unit = { syncTile() }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        NavBus.addListener(onBusChange)
+        syncTile()
+    }
+
+    override fun onStopListening() {
+        NavBus.removeListener(onBusChange)
+        super.onStopListening()
+    }
+
+    override fun onClick() {
+        super.onClick()
+        if (NavBus.serviceRunning) {
+            NavForegroundService.stop(this)
+            syncTile()
+            return
+        }
+        if (!hasBluetoothPermissions()) {
+            openApp()
+            return
+        }
+        val ok = runCatching { NavForegroundService.start(this) }.isSuccess
+        if (!ok) openApp()
+        syncTile()
+    }
+
+    @SuppressLint("StartActivityAndCollapseDeprecated")
+    private fun openApp() {
+        val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (Build.VERSION.SDK_INT >= 34) {
+            val pi = PendingIntent.getActivity(this, 2, intent, PendingIntent.FLAG_IMMUTABLE)
+            startActivityAndCollapse(pi)
+        } else {
+            @Suppress("DEPRECATION")
+            startActivityAndCollapse(intent)
+        }
+    }
+
+    private fun hasBluetoothPermissions(): Boolean {
+        if (Build.VERSION.SDK_INT < 31) return true
+        return checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun syncTile() {
+        val tile = qsTile ?: return
+        val running = NavBus.serviceRunning
+        tile.state = if (running) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        tile.label = "Moto Nav HUD"
+        tile.subtitle = when {
+            !running -> "Đã tắt"
+            NavBus.subscribers > 0 -> "${NavBus.subscribers} đồng hồ"
+            else -> "Đang phát BLE"
+        }
+        tile.updateTile()
+    }
+
+    companion object {
+        fun requestRefresh(ctx: Context) {
+            runCatching {
+                requestListeningState(ctx, ComponentName(ctx, NavTileService::class.java))
+            }
+        }
+    }
+}

@@ -2,9 +2,14 @@ package dev.motonavhud.app
 
 import android.app.Notification
 import android.content.ComponentName
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.drawable.Icon
 import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import dev.motonavhud.core.ManeuverIconClassifier
 import dev.motonavhud.core.MapsNotificationParser
 import dev.motonavhud.core.NavState
 import java.util.concurrent.Executors
@@ -73,7 +78,7 @@ class NavNotificationListener : NotificationListenerService() {
         } else {
             -1
         }
-        val state = MapsNotificationParser.parse(
+        val parsed = MapsNotificationParser.parse(
             x.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
             x.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
             x.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString(),
@@ -81,6 +86,13 @@ class NavNotificationListener : NotificationListenerService() {
             x.getCharSequence("android.shortCriticalText")?.toString(),
             progressRemainingM,
         )
+        // Dự phòng bảo thủ: chỉ đọc largeIcon của notification category=navigation khi phần chữ chưa có hướng rẽ.
+        val state = if (parsed.k == NavState.K_NAVIGATING && parsed.m == NavState.M_UNKNOWN && n.category == Notification.CATEGORY_NAVIGATION) {
+            val fromIcon = classifyLargeIcon(n.getLargeIcon())
+            if (fromIcon != NavState.M_UNKNOWN) parsed.copy(m = fromIcon) else parsed
+        } else {
+            parsed
+        }
         val key = sbn.key
         if (key != selectedKey) {
             // Notification ongoing khác (không phải dẫn đường) không được chiếm nguồn hay xóa tuyến.
@@ -100,6 +112,26 @@ class NavNotificationListener : NotificationListenerService() {
         selectedVersion = -1
         NavLog.i("listener source removed")
         NavBus.publishMaps(NavState.IDLE)
+    }
+
+    /** Chuyển largeIcon của Google Maps thành lưới nhị phân 16x16 để phân loại hướng dự phòng. */
+    private fun classifyLargeIcon(icon: Icon?): Int = try {
+        val d = icon?.loadDrawable(this) ?: return NavState.M_UNKNOWN
+        val g = ManeuverIconClassifier.GRID
+        val bmp = Bitmap.createBitmap(g, g, Bitmap.Config.ARGB_8888)
+        d.setBounds(0, 0, g, g)
+        d.draw(Canvas(bmp))
+        val mask = BooleanArray(g * g)
+        for (y in 0 until g) {
+            for (x in 0 until g) {
+                val px = bmp.getPixel(x, y)
+                mask[y * g + x] = Color.alpha(px) >= 120
+            }
+        }
+        bmp.recycle()
+        ManeuverIconClassifier.classify(mask)
+    } catch (_: Exception) {
+        NavState.M_UNKNOWN
     }
 
     /** Kiểm tra notification Maps đang chọn có còn tồn tại trên hệ thống không (chạy nền, tránh kẹt UI thread). */

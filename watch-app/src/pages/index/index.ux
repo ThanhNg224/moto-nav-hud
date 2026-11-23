@@ -1,99 +1,257 @@
 <template>
-  <div class="page" onclick="onTap">
-    <image class="arrow" if="{{arrow}}" src="{{arrow}}"></image>
-    <text class="banner {{bannerClass}}" if="{{banner}}">{{banner}}</text>
-    <text class="hint" if="{{hint}}">{{hint}}</text>
+  <div class="page" onswipe="onSwipe">
+    <!-- Vòng cung tiến độ dọc viền tròn (Beeline / Wear OS HUD) -->
+    <progress class="ring {{ringClass}}" type="arc" percent="{{arcPercent}}"></progress>
+
+    <!-- Chế độ dẫn đường: khung tròn nổi bật cho mũi tên + huy hiệu lối ra vòng xuyến -->
+    <div class="dial {{dialClass}}" if="{{arrow}}">
+      <image class="arrow" src="{{arrow}}"></image>
+    </div>
+    <text class="exit-pill" if="{{exitBadge}}">{{exitBadge}}</text>
+
+    <!-- Khoảng cách lớn & tên đường -->
     <text class="dist {{distClass}}" if="{{distance}}">{{distance}}</text>
     <text class="street" if="{{street}}">{{street}}</text>
-    <text class="bottom" if="{{bottom}}">{{bottom}}</text>
+
+    <!-- Viên thuốc ETA / km còn lại (chạm để xen kẽ đồng hồ giờ hiện tại) -->
+    <div class="pill-wrap" if="{{bottomText}}" onclick="onToggleClock">
+      <text class="bottom">{{bottomText}}</text>
+    </div>
+
+    <!-- Màn chờ / Tính lại / Đã đến / Mất dữ liệu -->
+    <text class="banner {{bannerClass}}" if="{{banner}}">{{banner}}</text>
+    <text class="hint" if="{{hint}}">{{hint}}</text>
+
+    <!-- Nút nhanh ở màn chờ (tránh chạm nhầm Demo khi đang chạy xe) -->
+    <div class="wait-actions" if="{{showWaitActions}}">
+      <text class="wbtn wbtn-demo" onclick="onTapDemo">▶ Demo</text>
+      <text class="wbtn wbtn-cfg" onclick="onOpenMenu">⚙ Cài đặt</text>
+    </div>
+
+    <!-- Thanh trạng thái đáy (có chấm màu + dư chiều cao cho dấu tiếng Việt) -->
     <text class="st st1" if="{{status1}}">{{status1}}</text>
-    <text class="st st2 {{statusClass}}" if="{{status2}}">{{status2}}</text>
+    <div class="st-row" if="{{status2}}" onclick="onStatusTap">
+      <div class="dot {{dotClass}}"></div>
+      <text class="st-txt {{statusClass}}">{{status2}}</text>
+    </div>
     <text class="st3" if="{{status3}}">{{status3}}</text>
+
+    <!-- Bảng Cài đặt nhanh (vuốt lên hoặc bấm Cài đặt) -->
+    <div class="menu" if="{{menuOpen}}">
+      <text class="menu-title">Cài đặt HUD</text>
+      <text class="mbtn mbtn-accent" onclick="onCyclePreset">Rung: {{presetLabel}}</text>
+      <text class="mbtn" onclick="onToggleNight">{{nightLabel}}</text>
+      <text class="mbtn" onclick="onToggleDemoFromMenu">{{demoBtnLabel}}</text>
+      <text class="mbtn mbtn-close" onclick="onCloseMenu">Đóng</text>
+    </div>
   </div>
 </template>
 
 <style>
-/* Màn tròn (design 480, bán kính 240). Toạ độ tuyệt đối, chữ canh giữa; dư chiều cao cho dấu/nét dưới tiếng Việt */
+/* Màn tròn 480x480 AMOLED (bán kính 240). Nền đen tuyệt đối tiết kiệm pin và giảm chói ban đêm */
 .page {
   width: 480px;
   height: 480px;
   background-color: #000000;
 }
-.arrow {
+/* Vòng cung 270° ôm mép trên mặt tròn (225° -> 135° theo chiều kim đồng hồ), chừa khoảng trống dưới cho trạng thái */
+.ring {
   position: absolute;
-  left: 176px;
-  top: 26px;
-  width: 128px;
-  height: 128px;
+  left: 0px;
+  top: 0px;
+  width: 480px;
+  height: 480px;
+  center-x: 240px;
+  center-y: 240px;
+  radius: 228px;
+  start-angle: 225deg;
+  total-angle: 270deg;
+  stroke-width: 12px;
+  layer-color: #161e2b;
+  color: #2dd4bf;
 }
+.ring-idle { color: #334155; }
+.ring-nav { color: #2dd4bf; }
+.ring-far { color: #ffd000; }
+.ring-near { color: #ff4d2d; }
+.ring-arrived { color: #34d399; }
+.ring-stale { color: #ef4444; }
+
+/* Khung tròn chứa mũi tên trung tâm */
+.dial {
+  position: absolute;
+  left: 170px;
+  top: 28px;
+  width: 140px;
+  height: 140px;
+  border-radius: 70px;
+  background-color: #101620;
+  border: 3px solid #223044;
+  justify-content: center;
+  align-items: center;
+}
+.dial-far {
+  background-color: #241d00;
+  border: 3px solid #ffd000;
+}
+.dial-near {
+  background-color: #2c100a;
+  border: 3px solid #ff4d2d;
+}
+.arrow {
+  width: 106px;
+  height: 106px;
+}
+.exit-pill {
+  position: absolute;
+  left: 280px;
+  top: 32px;
+  width: 92px;
+  height: 38px;
+  border-radius: 19px;
+  background-color: #ffd000;
+  color: #000000;
+  font-size: 22px;
+  font-weight: bold;
+  text-align: center;
+}
+
 .dist {
   position: absolute;
-  left: 40px;
-  top: 154px;
-  width: 400px;
-  height: 98px;
-  font-size: 78px;
+  left: 44px;
+  top: 172px;
+  width: 392px;
+  height: 88px;
+  font-size: 72px;
   font-weight: bold;
   color: #ffffff;
   text-align: center;
 }
 .dist-far { color: #ffd000; }
 .dist-near { color: #ff5a36; }
+
 .street {
   position: absolute;
-  left: 65px;
-  top: 252px;
-  width: 350px;
-  height: 76px;
-  font-size: 30px;
+  left: 64px;
+  top: 260px;
+  width: 352px;
+  height: 70px;
+  font-size: 27px;
   font-weight: bold;
-  color: #ffffff;
+  color: #f1f5f9;
   text-align: center;
   lines: 2;
   text-overflow: ellipsis;
 }
-.bottom {
+
+.pill-wrap {
   position: absolute;
-  left: 85px;
-  top: 334px;
-  width: 310px;
-  height: 40px;
-  font-size: 26px;
-  font-weight: bold;
-  color: #cfcfcf;
-  text-align: center;
+  left: 94px;
+  top: 336px;
+  width: 292px;
+  height: 42px;
+  border-radius: 21px;
+  background-color: #141c27;
+  justify-content: center;
+  align-items: center;
 }
+.bottom {
+  width: 276px;
+  height: 34px;
+  font-size: 23px;
+  font-weight: bold;
+  color: #cbd5e1;
+  text-align: center;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+
+/* Màn trạng thái (chờ / tính lại / đến / mất dữ liệu) */
 .banner {
   position: absolute;
-  left: 40px;
-  top: 146px;
-  width: 400px;
-  height: 78px;
-  font-size: 50px;
+  left: 44px;
+  top: 130px;
+  width: 392px;
+  height: 76px;
+  font-size: 46px;
   font-weight: bold;
   color: #ffd000;
   text-align: center;
 }
 .banner-wait { color: #ffffff; }
 .banner-stale { color: #ff5a36; }
-.banner-arrived { color: #5ce67a; }
+.banner-arrived { color: #34d399; }
+
 .hint {
   position: absolute;
-  left: 50px;
-  top: 232px;
-  width: 380px;
+  left: 56px;
+  top: 210px;
+  width: 368px;
   height: 44px;
-  font-size: 26px;
+  font-size: 23px;
   font-weight: bold;
-  color: #a8a8a8;
+  color: #94a3b8;
   text-align: center;
 }
-/* Dòng trạng thái: cao 34px cho font 20px (không cắt dấu nặng/nét dưới tiếng Việt); width 280 nằm gọn dây cung y=424 */
+
+.wait-actions {
+  position: absolute;
+  left: 74px;
+  top: 278px;
+  width: 332px;
+  height: 64px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+.wbtn {
+  width: 158px;
+  height: 60px;
+  border-radius: 30px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+.wbtn-demo { background-color: #0f766e; }
+.wbtn-cfg { background-color: #1e293b; }
+
+/* Dòng trạng thái đáy: chấm màu + chữ, rộng 276px nằm gọn dây cung tròn, cao 36px không cắt dấu Việt */
 .st {
   position: absolute;
   left: 100px;
   width: 280px;
-  height: 34px;
+  height: 30px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #9be59b;
+  text-align: center;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.st1 { top: 360px; }
+.st-row {
+  position: absolute;
+  left: 100px;
+  top: 392px;
+  width: 280px;
+  height: 36px;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  margin-right: 8px;
+  background-color: #ffd000;
+}
+.dot-ok { background-color: #34d399; }
+.dot-warn { background-color: #ffd000; }
+.dot-err { background-color: #ff6b6b; }
+.st-txt {
+  height: 32px;
   font-size: 20px;
   font-weight: bold;
   color: #6ee787;
@@ -107,23 +265,63 @@
 .st3 {
   position: absolute;
   left: 130px;
-  top: 418px;
+  top: 424px;
   width: 220px;
-  height: 34px;
+  height: 30px;
   font-size: 14px;
   font-weight: bold;
   color: #9be59b;
   text-align: center;
-  lines: 2;
+  lines: 1;
   text-overflow: ellipsis;
 }
-.st1 { top: 360px; }
-.st2 { top: 388px; }
+
+/* Lớp phủ Cài đặt nhanh */
+.menu {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 480px;
+  height: 480px;
+  background-color: #05070a;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.menu-title {
+  width: 300px;
+  height: 44px;
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.mbtn {
+  width: 310px;
+  height: 60px;
+  border-radius: 30px;
+  background-color: #1e293b;
+  color: #f8fafc;
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.mbtn-accent { background-color: #0369a1; }
+.mbtn-close {
+  width: 180px;
+  height: 54px;
+  border-radius: 27px;
+  background-color: #334155;
+  margin-bottom: 0px;
+}
 </style>
 
 <script>
 import brightness from '@system.brightness'
 import vibrator from '@system.vibrator'
+import storage from '@system.storage'
 
 const hud = require('../../common/hud-logic.js')
 const cfg = require('../../common/config.js')
@@ -132,6 +330,9 @@ const ic = require('../../common/transport-interconnect.js')
 const ble = require('../../common/transport-ble.js')
 const shortSt = require('../../common/status.js')
 const L = require('../../common/log.js')
+
+const KEY_PRESET = 'haptic_preset'
+const KEY_NIGHT = 'night_mode'
 
 let live = hud.createState()   // trạng thái tin thật
 let demo = null                // trạng thái demo cục bộ (tách khỏi live); null = không chạy demo
@@ -149,38 +350,118 @@ let tickN = 0
 let tickTimer = null
 let buzz = null
 let lastMode = ''
+let presetKey = 'std'
+let nightMode = false
+let origBrightness = -1
+let showClock = false
+let pageGen = 0
+let visible = false
+let userTouchedPreset = false
+let userTouchedNight = false
+
+function pad2(n) { return n < 10 ? '0' + n : String(n) }
+function clockStr() {
+  const d = new Date()
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes())
+}
 
 export default {
   private: {
+    arcPercent: 0,
+    ringClass: 'ring-idle',
+    dialClass: '',
     arrow: '',
+    exitBadge: '',
     distance: '',
     distClass: '',
-    banner: 'Chờ dữ liệu',
+    banner: 'Chờ chỉ đường',
     bannerClass: 'banner-wait',
-    hint: 'Chạm để chạy DEMO',
+    hint: 'Mở Google Maps trên điện thoại',
+    showWaitActions: true,
     street: '',
-    bottom: '',
+    bottomText: '',
     status1: '',
     status2: '',
     statusClass: 'st-warn',
-    status3: ''
+    dotClass: 'dot-warn',
+    status3: '',
+    menuOpen: false,
+    presetLabel: 'Chuẩn (200/50m)',
+    nightLabel: 'Màn hình: Sáng',
+    demoBtnLabel: 'Chạy Demo'
   },
 
   onShow() {
+    const my = ++pageGen
+    visible = true
+    origBrightness = -1
+    userTouchedPreset = false
+    userTouchedNight = false
+    this.loadPrefs(my)
     try {
+      brightness.getValue({
+        success: (d) => {
+          if (!visible || my !== pageGen) return
+          if (d && typeof d.value === 'number') origBrightness = d.value
+          this.applyBrightness()
+        }
+      })
       brightness.setKeepScreenOn({
         keepScreenOn: true,
-        fail: (data, code) => { extra = 'sáng lỗi ' + code; this.refreshStatus() }
+        fail: (data, code) => { if (visible && my === pageGen) { extra = 'sáng lỗi ' + code; this.refreshStatus() } }
       })
     } catch (e) { extra = 'sáng ' + e }
     this.startAll()
   },
-  onHide() { this.stopAll(true) },
-  onDestroy() { this.stopAll(true) },
+  onHide() { visible = false; pageGen++; this.stopAll(true) },
+  onDestroy() { visible = false; pageGen++; this.stopAll(true) },
+
+  loadPrefs(my) {
+    try {
+      storage.get({
+        key: KEY_PRESET,
+        default: 'std',
+        success: (v) => {
+          if (!visible || my !== pageGen || userTouchedPreset) return
+          presetKey = hud.applyPreset(live, v)
+          if (demo) hud.applyPreset(demo, presetKey)
+          this.syncMenuLabels()
+        }
+      })
+      storage.get({
+        key: KEY_NIGHT,
+        default: '0',
+        success: (v) => {
+          if (!visible || my !== pageGen || userTouchedNight) return
+          nightMode = v === '1'
+          if (origBrightness >= 0) this.applyBrightness()
+          this.syncMenuLabels()
+        }
+      })
+    } catch (e) {}
+  },
+
+  applyBrightness() {
+    if (!visible || origBrightness < 0) return
+    try {
+      brightness.setValue({ value: nightMode ? 80 : 230 })
+    } catch (e) {}
+  },
+
+  restoreBrightness() {
+    try {
+      if (origBrightness >= 0) {
+        brightness.setValue({ value: origBrightness })
+        origBrightness = -1
+      }
+      brightness.setKeepScreenOn({ keepScreenOn: false })
+    } catch (e) {}
+  },
 
   startAll() {
     this.stopAll(false)
     live = hud.createState()
+    hud.applyPreset(live, presetKey)
     channel = ''
     statusA = ''
     statusC = ''
@@ -199,6 +480,7 @@ export default {
     if (cfg.DEBUG_STATUS) {
       tickTimer = setInterval(() => { tickN++; self.refreshStatus() }, 1000)
     }
+    this.syncMenuLabels()
     this.render()
   },
 
@@ -209,7 +491,7 @@ export default {
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
     this.stopDemo()
     if (buzz) buzz.cancel()
-    if (release) { try { brightness.setKeepScreenOn({ keepScreenOn: false }) } catch (e) {} }
+    if (release) this.restoreBrightness()
   },
 
   // Trả true chỉ khi tin được bộ lọc z/q CHẤP NHẬN (transport dùng làm "kênh còn sống")
@@ -220,7 +502,7 @@ export default {
     if (!r.accepted) { L.count('hud.drop'); return false }
     L.count('hud.accept')
     channel = tag
-    if (msg.k !== 0 && demo) this.stopDemo() // phiên dẫn đường thật bắt đầu: dừng demo
+    if (msg.k !== 0 && demo) this.stopDemo()
     if (!demo) this.applyVibe(r)
     this.render()
     return true
@@ -231,7 +513,6 @@ export default {
     channel = ''
     const v = hud.invalidate(live)
     L.log('lost', 'channel=' + tag, v ? 'pulse' : 'no-pulse')
-    // xung "lost" đã bắt đầu thì không bị ngắt bởi ngắt kênh/heartbeat; chỉ hủy mẫu rẽ
     if (!demo) { if (v) { buzz.cancel(); buzz.play(v) } else buzz.cancelTurn() }
     this.render()
   },
@@ -241,16 +522,23 @@ export default {
     else if (r.cancel) buzz.cancelTurn()
   },
 
-  // Chỉ ghi thuộc tính reactive khi giá trị thực sự đổi (tránh vẽ lại thừa trên đồng hồ)
   setField(k, v) { if (this[k] !== v) this[k] = v },
 
-  // Hai dòng: A (interconnect) và C (BLE); kênh đang sống có nhãn LIVE
+  syncMenuLabels() {
+    const p = hud.HAPTIC_PRESETS[presetKey] || hud.HAPTIC_PRESETS.std
+    this.setField('presetLabel', p.label)
+    this.setField('nightLabel', nightMode ? 'Màn hình: Đêm (dịu)' : 'Màn hình: Sáng')
+    this.setField('demoBtnLabel', demo ? 'Dừng Demo' : 'Chạy Demo')
+  },
+
   refreshStatus() {
-    this.setField('statusClass', 'st-' + shortSt.statusTone(channel, statusC, !!demo))
+    const tone = shortSt.statusTone(channel, statusC, !!demo)
+    this.setField('statusClass', 'st-' + tone)
+    this.setField('dotClass', 'dot-' + tone)
     if (!cfg.DEBUG_STATUS) {
       this.setField('status1', '')
       this.setField('status3', '')
-      this.setField('status2', demo ? 'DEMO - chạm để dừng' : shortSt.shortStatus(channel, statusC))
+      this.setField('status2', demo ? 'DEMO · chạm để dừng' : shortSt.shortStatus(channel, statusC))
       return
     }
     this.setField('status1', (demo ? 'DEMO ' : '') + (channel === 'A' ? 'LIVE ' : '') + statusA + ' #' + tickN)
@@ -265,26 +553,92 @@ export default {
     if (ev === 'lost') { L.log('stale', 'pulse'); buzz.cancel(); buzz.play('lost') }
     const v = hud.view(st, now)
     if (v.mode !== lastMode) { L.log('mode', lastMode + '->' + v.mode); lastMode = v.mode }
+
+    const ringCls = v.mode === 'stale' ? 'ring-stale'
+      : (v.mode === 'arrived' ? 'ring-arrived'
+        : (v.mode === 'nav' ? (v.urgency === 'near' ? 'ring-near' : (v.urgency === 'far' ? 'ring-far' : 'ring-nav')) : 'ring-idle'))
+
+    this.setField('arcPercent', v.arcPercent)
+    this.setField('ringClass', ringCls)
+    this.setField('dialClass', v.urgency === 'near' ? 'dial-near' : (v.urgency === 'far' ? 'dial-far' : ''))
     this.setField('arrow', v.arrow || '')
+    this.setField('exitBadge', v.exitBadge || '')
     this.setField('distance', v.distance)
     this.setField('distClass', v.urgency === 'near' ? 'dist-near' : (v.urgency === 'far' ? 'dist-far' : ''))
     this.setField('banner', v.banner)
     this.setField('bannerClass', v.mode === 'stale' ? 'banner-stale' : (v.mode === 'arrived' ? 'banner-arrived' : (v.mode === 'waiting' ? 'banner-wait' : '')))
-    // gợi ý chỉ hiện khi chờ (không có khoảng cách/đường); gợi ý demo nằm ở dòng trạng thái riêng
-    this.setField('hint', (!demo && v.mode === 'waiting' && !v.distance && !v.street) ? 'Chạm để chạy DEMO' : '')
-    this.setField('street', v.street)
-    this.setField('bottom', v.bottom)
+    const isWait = !demo && v.mode === 'waiting' && !v.distance && !v.street
+    this.setField('hint', isWait ? 'Mở Google Maps trên điện thoại' : '')
+    this.setField('showWaitActions', isWait)
+    // Khi đã có huy hiệu LỐI X riêng, dòng street hiện tên đường gọn hơn
+    this.setField('street', v.exitBadge ? v.road : v.street)
+    const bot = v.mode === 'nav' ? (showClock ? 'Giờ ' + clockStr() : v.bottom) : ''
+    this.setField('bottomText', bot)
     this.refreshStatus()
   },
 
-  onTap() {
+  onSwipe(e) {
+    if (!e) return
+    if (e.direction === 'up') { this.setField('menuOpen', true); this.syncMenuLabels() }
+    else if (e.direction === 'down' && this.menuOpen) { this.setField('menuOpen', false) }
+  },
+
+  onToggleClock() {
+    showClock = !showClock
+    this.render()
+  },
+
+  onStatusTap() {
     if (demo) { this.stopDemo(); this.render(); return }
-    if (live.msg && live.msg.k !== 0 && !live.lost) return
+    this.setField('menuOpen', true)
+    this.syncMenuLabels()
+  },
+
+  onTapDemo() {
+    if (demo) { this.stopDemo(); this.render(); return }
     this.startDemo()
+  },
+
+  onOpenMenu() {
+    this.setField('menuOpen', true)
+    this.syncMenuLabels()
+  },
+
+  onCloseMenu() {
+    this.setField('menuOpen', false)
+  },
+
+  onCyclePreset() {
+    userTouchedPreset = true
+    const idx = hud.PRESET_ORDER.indexOf(presetKey)
+    presetKey = hud.PRESET_ORDER[(idx + 1) % hud.PRESET_ORDER.length]
+    hud.applyPreset(live, presetKey)
+    if (demo) hud.applyPreset(demo, presetKey)
+    if (presetKey === 'off' && buzz) buzz.cancelTurn()
+    try { storage.set({ key: KEY_PRESET, value: presetKey }) } catch (e) {}
+    this.syncMenuLabels()
+    this.render()
+  },
+
+  onToggleNight() {
+    userTouchedNight = true
+    nightMode = !nightMode
+    this.applyBrightness()
+    try { storage.set({ key: KEY_NIGHT, value: nightMode ? '1' : '0' }) } catch (e) {}
+    this.syncMenuLabels()
+  },
+
+  onToggleDemoFromMenu() {
+    if (demo) this.stopDemo()
+    else this.startDemo()
+    this.setField('menuOpen', false)
+    this.syncMenuLabels()
+    this.render()
   },
 
   startDemo() {
     demo = hud.createState()
+    hud.applyPreset(demo, presetKey)
     demoIdx = 0
     demoQ = 0
     buzz.cancel()
@@ -297,11 +651,13 @@ export default {
     }
     step()
     demoTimer = setInterval(step, cfg.DEMO_STEP_MS)
+    this.syncMenuLabels()
   },
 
   stopDemo() {
     if (demoTimer) { clearInterval(demoTimer); demoTimer = null }
     if (demo) { demo = null; if (buzz) buzz.cancel() }
+    this.syncMenuLabels()
   }
 }
 </script>

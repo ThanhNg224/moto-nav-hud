@@ -89,11 +89,26 @@ function parsePayload(input, cfg) {
   }
 }
 
+var HAPTIC_PRESETS = {
+  std: { far: 200, near: 50, label: 'Chuẩn (200/50m)' },
+  city: { far: 150, near: 40, label: 'Phố (150/40m)' },
+  fast: { far: 300, near: 80, label: 'Xa (300/80m)' },
+  off: { far: -1, near: -1, label: 'Tắt rung' }
+}
+var PRESET_ORDER = ['std', 'city', 'fast', 'off']
+
+function applyPreset(state, presetKey) {
+  var p = HAPTIC_PRESETS[presetKey] || HAPTIC_PRESETS.std
+  var next = Object.assign({}, state.cfg, { VIBE_FAR_M: p.far, VIBE_NEAR_M: p.near })
+  state.cfg = next
+  return presetKey in HAPTIC_PRESETS ? presetKey : 'std'
+}
+
 var RETIRED_MAX = 8
 
 function createState(cfg) {
   return {
-    cfg: cfg || DEFAULTS,
+    cfg: Object.assign({}, cfg || DEFAULTS),
     msg: null,
     z: null,
     retired: [],
@@ -147,7 +162,8 @@ function accept(state, msg, now) {
   if (msg.k !== 1 || msg.m === 0 || msg.d < 0) return { accepted: true, vibe: null, cancel: true }
   var stepChanged = msg.i !== state.stepI
   if (stepChanged) { state.stepI = msg.i; state.fired = 0 }
-  var level = msg.d <= cfg.VIBE_NEAR_M ? 2 : (msg.d <= cfg.VIBE_FAR_M ? 1 : 0)
+  if (cfg.VIBE_FAR_M < 0 && cfg.VIBE_NEAR_M < 0) return { accepted: true, vibe: null, cancel: stepChanged }
+  var level = (cfg.VIBE_NEAR_M >= 0 && msg.d <= cfg.VIBE_NEAR_M) ? 2 : ((cfg.VIBE_FAR_M >= 0 && msg.d <= cfg.VIBE_FAR_M) ? 1 : 0)
   if (level > state.fired) {
     state.fired = level
     return { accepted: true, vibe: level === 2 ? 'near' : 'far', cancel: false }
@@ -180,32 +196,49 @@ function invalidate(state) {
 }
 
 function emptyView(mode, banner) {
-  return { mode: mode, urgency: 'normal', arrow: null, distance: '', banner: banner || '', street: '', eta: '', remain: '', bottom: '' }
+  return {
+    mode: mode, urgency: 'normal', arcPercent: 0,
+    arrow: null, exitBadge: '', distance: '', banner: banner || '',
+    street: '', road: '', eta: '', remain: '', bottom: ''
+  }
 }
 
 // Dữ liệu hiển thị. mode: waiting | stale | recalc | nav | arrived
 function view(state, now) {
   var cfg = state.cfg
   var m = state.msg
-  if (!m && state.lost) return emptyView('stale', 'MẤT DỮ LIỆU')
-  if (!m || m.k === 0) return emptyView('waiting', 'Chờ dữ liệu')
-  if (stale(state, now)) return emptyView('stale', 'MẤT DỮ LIỆU')
-  var street = m.s
-  if (cfg.FOLD_DIACRITICS) street = foldDiacritics(street)
-  if (m.m === 9 && m.x > 0) street = 'Lối ' + m.x + (street ? ' · ' + street : '')
+  if (!m && state.lost) { var s0 = emptyView('stale', 'MẤT DỮ LIỆU'); s0.arcPercent = 100; return s0 }
+  if (!m || m.k === 0) return emptyView('waiting', 'Chờ chỉ đường')
+  if (stale(state, now)) { var s1 = emptyView('stale', 'MẤT DỮ LIỆU'); s1.arcPercent = 100; return s1 }
+  var road = m.s
+  if (cfg.FOLD_DIACRITICS) road = foldDiacritics(road)
+  var street = road
+  var exitBadge = ''
+  if (m.m === 9 && m.x > 0) {
+    exitBadge = 'LỐI ' + m.x
+    street = 'Lối ' + m.x + (road ? ' · ' + road : '')
+  }
   var bottom = [m.e, m.r >= 0 ? formatDistance(m.r) : ''].filter(function (v) { return v }).join(' · ')
   var v = emptyView('nav')
+  v.road = road
   v.street = street
+  v.exitBadge = exitBadge
   v.eta = m.e
   v.remain = m.r >= 0 ? formatDistance(m.r) : ''
   v.bottom = bottom
-  if (m.k === 2) { v.mode = 'recalc'; v.banner = 'Đang tính lại'; v.street = ''; return v }
-  if (m.k === 3) { v.mode = 'arrived'; v.arrow = null; v.street = ''; v.banner = 'Đã đến'; return v }
+  if (m.k === 2) { v.mode = 'recalc'; v.banner = 'Đang tính lại'; v.street = ''; v.road = ''; v.exitBadge = ''; return v }
+  if (m.k === 3) { v.mode = 'arrived'; v.arrow = null; v.street = ''; v.road = ''; v.exitBadge = ''; v.banner = 'Đã đến'; v.arcPercent = 100; return v }
   v.arrow = arrowAsset(m.m)
   v.distance = formatDistance(m.d)
+  if (m.d >= 0) {
+    // Vòng cung tiến gần điểm rẽ: 500 m -> 6%, 0 m -> 100%
+    v.arcPercent = Math.round(Math.max(6, Math.min(100, (1 - m.d / 500) * 100)))
+  }
   if (m.m !== 0 && m.d >= 0) {
-    if (m.d <= cfg.VIBE_NEAR_M) v.urgency = 'near'
-    else if (m.d <= cfg.VIBE_FAR_M) v.urgency = 'far'
+    var nearM = cfg.VIBE_NEAR_M >= 0 ? cfg.VIBE_NEAR_M : DEFAULTS.VIBE_NEAR_M
+    var farM = cfg.VIBE_FAR_M >= 0 ? cfg.VIBE_FAR_M : DEFAULTS.VIBE_FAR_M
+    if (m.d <= nearM) v.urgency = 'near'
+    else if (m.d <= farM) v.urgency = 'far'
   }
   return v
 }
@@ -226,7 +259,8 @@ function demoMessage(i, q) {
 }
 
 module.exports = {
-  NAMES: NAMES, arrowAsset: arrowAsset, formatDistance: formatDistance, foldDiacritics: foldDiacritics,
+  NAMES: NAMES, HAPTIC_PRESETS: HAPTIC_PRESETS, PRESET_ORDER: PRESET_ORDER, applyPreset: applyPreset,
+  arrowAsset: arrowAsset, formatDistance: formatDistance, foldDiacritics: foldDiacritics,
   utf8Decode: utf8Decode, parsePayload: parsePayload, createState: createState, accept: accept, invalidate: invalidate,
   isStale: isStale, tick: tick, view: view, demoMessage: demoMessage, DEMO_LENGTH: DEMO.length
 }

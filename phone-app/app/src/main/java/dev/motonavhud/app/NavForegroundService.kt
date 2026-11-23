@@ -42,6 +42,8 @@ class NavForegroundService : Service() {
     private var lastLogAt = 0L
     private var lastLogKmi = ""
     private var lastVerifyAt = 0L
+    private var idleSince = 0L
+    private var lastSubscribers = -1
 
     private val tick = object : Runnable {
         override fun run() {
@@ -89,7 +91,7 @@ class NavForegroundService : Service() {
         val stopIntent = Intent(this, NavForegroundService::class.java).setAction(ACTION_STOP)
         val stopPi = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+            .setSmallIcon(R.drawable.ic_hud_arrow)
             .setContentTitle("Moto Nav HUD đang chạy")
             .setContentText("Đang gửi chỉ đường tới đồng hồ qua BLE")
             .setOngoing(true)
@@ -123,7 +125,9 @@ class NavForegroundService : Service() {
         registerReceiver(btReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         acquireWakeLock()
         NavBus.serviceRunning = true
+        NavBus.idleRemainingSec = -1
         NavBus.changed()
+        NavTileService.requestRefresh(this)
         handler.post(tick)
     }
 
@@ -197,13 +201,43 @@ class NavForegroundService : Service() {
             }
         }
         if (ble.isAdvertising) bleRetries = 0
+        // Kiểm tra auto-stop độc lập với throttle.poll() trên mỗi nhịp 200 ms.
+        val autoStopMin = Prefs.autoStopMinutes(this)
+        if (autoStopMin > 0 && NavBus.currentState.k == NavState.K_IDLE && !NavBus.demo) {
+            if (idleSince == 0L) idleSince = now
+            val remainMs = autoStopMin * 60_000L - (now - idleSince)
+            if (remainMs <= 0L) {
+                NavLog.i("auto-stop idle=${autoStopMin}m")
+                NavBus.bleStatus = "tự dừng sau $autoStopMin phút chờ"
+                NavBus.idleRemainingSec = -1
+                NavBus.changed()
+                stopSelf()
+                return
+            }
+            NavBus.idleRemainingSec = ((remainMs + 999) / 1000).toInt()
+        } else {
+            idleSince = 0L
+            NavBus.idleRemainingSec = -1
+        }
         val e = throttle.poll() ?: return
+        val rendered = e.render(now)
+        NavBus.currentState = rendered.state
+        if (rendered.state.k != NavState.K_IDLE) {
+            idleSince = 0L
+            NavBus.idleRemainingSec = -1
+        }
+
         // Payload được dựng LÚC GỬI THẬT từ mốc thời gian nguồn, nên a/hết hạn luôn tính lại.
         // Closure không có side-effect: cảnh báo MTU do BlePeripheralServer suy ra từ lần gửi thật của từng peer.
         val build = { limit: Int -> buildPayload(e, limit) }
         transports.forEach { it.send(build) }
         logPayload(e, now)
-        NavBus.subscribers = ble.subscriberCount
+        val subs = ble.subscriberCount
+        NavBus.subscribers = subs
+        if (subs != lastSubscribers) {
+            lastSubscribers = subs
+            NavTileService.requestRefresh(this)
+        }
         // Chỉ serialize bản xem trước khi MainActivity đang mở: tiết kiệm CPU/RAM khi tắt màn hình bỏ túi.
         if (NavBus.hasListeners) {
             val preview = buildPayload(e, PayloadBuilder.MAX_BYTES)
@@ -260,9 +294,12 @@ class NavForegroundService : Service() {
         wakeLock?.let { if (it.isHeld) it.release() }
         NavBus.serviceRunning = false
         NavBus.demo = false
+        NavBus.currentState = NavState.IDLE
+        NavBus.idleRemainingSec = -1
         NavBus.lastPayload = ""
         NavBus.subscribers = 0
         NavBus.changed()
+        NavTileService.requestRefresh(this)
         super.onDestroy()
     }
 
