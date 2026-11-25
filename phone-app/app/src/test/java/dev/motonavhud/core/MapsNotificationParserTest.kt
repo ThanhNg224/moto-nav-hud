@@ -133,6 +133,17 @@ class MapsNotificationParserTest {
 
     @Test fun round4Regressions() = round4.forEach(::check)
 
+    private val streetFirst = listOf(
+        Case("vi street-first turn left with comma", "100 m", "Trên đường Nguyễn Trãi, rẽ trái", null, null, 1, 3, 100),
+        // "Trên đường Nguyễn Trãi rẽ trái" (không dấu phẩy) hiện parse m=0: chưa đưa vào danh sách, cần quyết định parser.
+        Case("vi street-first keep right", "100 m", "Trên đường Nguyễn Trãi, giữ bên phải", null, null, 1, 11, 100),
+        Case("vi street-first u-turn", "100 m", "Trên đường Nguyễn Trãi, quay đầu", null, null, 1, 8, 100),
+        Case("vi street-first slight right", "100 m", "Trên đường Nguyễn Trãi, chếch phải", null, null, 1, 5, 100),
+        Case("en street-first turn left", "100 m", "On Nguyen Trai, turn left", null, null, 1, 3, 100),
+    )
+
+    @Test fun streetFirstVariants() = streetFirst.forEach(::check)
+
     @Test fun realOppoAndroid17Maps26ProgressStyle() {
         // Mẫu thật thu từ OPPO CPH2873 Android 17 + Google Maps 26.47.00 (mode=l xe máy, ProgressStyle Live Updates).
         val s1 = MapsNotificationParser.parse(

@@ -119,7 +119,7 @@ class NavNotificationListener : NotificationListenerService() {
         NavLog.v("parse k=${state.k} m=${state.m} d=${state.d} street.len=${state.s.length} seed=$seed")
         val now = SystemClock.elapsedRealtime()
         val ageMs = if (seed) (System.currentTimeMillis() - sbn.postTime).coerceAtLeast(0L) else 0L
-        selectedVersion = NavBus.publishMaps(state, now - ageMs, sbn.postTime)
+        selectedVersion = NavBus.publishMaps(state, now - ageMs, sbn.postTime, aliveAtMs = now)
         if (state.k == NavState.K_NAVIGATING) {
             NavBus.autoStartGate.onMapsActive(now)
             if (!seed || ageMs < 10_000L) tryAutoStart()
@@ -210,6 +210,11 @@ class NavNotificationListener : NotificationListenerService() {
                 NavBus.autoStartGate.onMapsIdle(SystemClock.elapsedRealtime())
             }
             return
+        }
+        synchronized(this) {
+            if (selectedKey != key || selectedVersion != ver) return // nguồn đã đổi trong lúc kiểm tra: xác nhận này không còn đúng
+            // còn hiện diện: chỉ gia hạn k=1 qua khoảng im, không làm mới `a`
+            NavBus.mapsAlive = NavBus.MapsAlive(ver, SystemClock.elapsedRealtime())
         }
         if (active.postTime > prevPostTime) {
             synchronized(this) {

@@ -188,4 +188,61 @@ class ThrottleTest {
         assertEquals(first.i, e.i) // không tăng stepId -> không rung lặp
         assertEquals(0, e.render(now).a)
     }
+
+    @Test fun confirmAliveHoldsK1PastNavStaleWithoutRefreshingAge() {
+        th.offer(nav)
+        now += 100_000
+        th.confirmAlive()
+        val e = th.poll()!!
+        assertEquals(1, e.state.k)
+        assertEquals(100_000, e.render(now).a) // xác nhận không làm mới tuổi
+    }
+
+    @Test fun k1WithoutConfirmAliveExpiresAfterNavStale() {
+        th.offer(nav)
+        now += 75_001
+        assertEquals(0, th.poll()!!.state.k)
+    }
+
+    @Test fun staleConfirmAliveDoesNotHoldK1() {
+        th.offer(nav)
+        now += 80_000
+        th.confirmAlive()
+        now += 16_000 // 96 s; xác nhận cách 16 s > 15 s
+        assertEquals(0, th.poll()!!.state.k)
+    }
+
+    @Test fun aliveCapsK1AtTenMinutesFromRealOffer() {
+        th.offer(nav)
+        repeat(200) { now += 3_000; th.confirmAlive() } // t0 + 600 s, xác nhận mỗi 3 s
+        assertEquals(1, th.poll()!!.state.k)
+        now += 1
+        assertEquals(0, th.poll()!!.state.k)
+    }
+
+    @Test fun aliveDoesNotExtendArrivedK3() {
+        th.offer(nav.copy(k = 3))
+        th.confirmAlive()
+        now += 15_001
+        assertEquals(0, th.poll()!!.state.k)
+    }
+
+    @Test fun newOfferDropsPreviousAliveConfirmation() {
+        th.offer(nav)
+        now += 70_000
+        th.confirmAlive()
+        th.offer(nav.copy(d = 150), now - 80_000) // nguồn mới đã cũ 80 s: xác nhận sống cũ không được gia hạn nó
+        assertEquals(0, th.poll()!!.state.k)
+    }
+
+    @Test fun aliveEmissionReRenderedAfterConfirmGoesIdle() {
+        th.offer(nav)
+        now += 100_000
+        th.confirmAlive()
+        val e = th.poll()!!
+        assertEquals(1, e.state.k)
+        assertEquals(100_000, e.render(now).a)
+        val later = e.render(now + 30_000) // 130 s; xác nhận cũ 30 s
+        assertEquals(0, later.state.k); assertEquals(0, later.a)
+    }
 }

@@ -13,8 +13,10 @@ module.exports = {
   // (Maps chỉ đăng lại khi chữ đổi nên đoạn đường thẳng dài là bình thường); với k khác 1 đây là ngưỡng MẤT DỮ LIỆU.
   // Chỉ tin có a <= mức này mới được rung/nạp lại rung báo mất.
   MAX_SOURCE_AGE_MS: 10000,
-  // k=1: tuổi nguồn vượt ngần này ms mới MẤT DỮ LIỆU thật (banner đỏ + rung 'lost')
-  NAV_LOST_SOURCE_AGE_MS: 65000,
+  // k=1: tuổi nguồn vượt ngần này ms mới MẤT DỮ LIỆU thật (banner đỏ + rung 'lost').
+  // Phone là bên quyết định: nó giữ k=1 tới 600000 ms khi thông báo Maps còn sống (đèn đỏ lâu) rồi gửi k=0,
+  // nên ngưỡng này (11 phút) chỉ là lưới an toàn nằm trên mốc đó.
+  NAV_LOST_SOURCE_AGE_MS: 660000,
   // Ngưỡng rung (mét)
   VIBE_FAR_M: 200,
   VIBE_NEAR_M: 50,

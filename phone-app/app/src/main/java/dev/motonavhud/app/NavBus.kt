@@ -29,6 +29,10 @@ object NavBus {
 
     val mapsState: NavState get() = mapsSnapshot.state
 
+    /** Xác nhận "thông báo Maps còn hiện diện" gắn với đúng [MapsSnapshot.version] đã kiểm tra; không phải bản đăng mới. */
+    data class MapsAlive(val version: Int, val atMs: Long)
+    @Volatile var mapsAlive: MapsAlive? = null
+
     /** Chạy thử chỉ được bắt đầu khi không có chỉ đường Google Maps thật (Maps luôn thắng demo). */
     fun canStartDemo(): Boolean = mapsState.k == NavState.K_IDLE
 
@@ -101,7 +105,7 @@ object NavBus {
     private var lastPostWallMs = -1L
 
     /** [postTimeMs] là `sbn.postTime` (epoch ms) của Maps; 0 = không có (gap_ms=-1). */
-    fun publishMaps(state: NavState, atMs: Long = SystemClock.elapsedRealtime(), postTimeMs: Long = 0L): Int {
+    fun publishMaps(state: NavState, atMs: Long = SystemClock.elapsedRealtime(), postTimeMs: Long = 0L, aliveAtMs: Long = 0L): Int {
         var gapMs = -1L
         var logPost = true
         val ver = synchronized(this) {
@@ -116,6 +120,9 @@ object NavBus {
                 }
             }
             val next = mapsSnapshot.version + 1
+            // Thông báo vừa được đọc từ danh sách active nên chắc chắn còn hiện diện: gắn xác nhận vào đúng version mới
+            // TRƯỚC khi snapshot lộ ra, để thông báo đã cũ (seed lúc khởi động/nối lại) không hết hạn chờ lần verify kế tiếp.
+            if (aliveAtMs > 0L && state.k != NavState.K_IDLE) mapsAlive = MapsAlive(next, aliveAtMs)
             mapsSnapshot = MapsSnapshot(state, atMs, next)
             next
         }

@@ -339,6 +339,8 @@ class NavForegroundService : Service() {
             NavBus.idleRemainingSec = -1
         }
         val nextTickMs = if (activeWork) FAST_TICK_MS else IDLE_TICK_MS
+        val alive = NavBus.mapsAlive
+        if (!frameDemo && alive != null && alive.version == snap.version) throttle.confirmAlive(alive.atMs)
         val e = throttle.poll()
         if (e == null) {
             syncNotification()
@@ -382,8 +384,8 @@ class NavForegroundService : Service() {
         val r = e.render(now)
         // Tuổi nguồn thô (render() đưa về IDLE/0 khi quá 15 s nên không dùng r.a).
         val rawAge = e.sourceAt?.let { (now - it).coerceAtLeast(0) } ?: 0L
-        // Bucket khớp ngưỡng đồng hồ: 1 = "cũ" (>= 10 s), 2 = mất dữ liệu cứng (>= 65 s); k về 0 sau 75 s.
-        val bucket = if (e.state.k != 1) 0 else if (rawAge > 65000) 2 else if (rawAge > 10000) 1 else 0
+        // Bucket: 1 = "cũ" (>= 10 s), 2 = quá 75 s (chỉ còn nhờ thông báo Maps xác nhận còn sống, tối đa 10 phút).
+        val bucket = if (e.state.k != 1) 0 else if (rawAge > 75000) 2 else if (rawAge > 10000) 1 else 0
         if (bucket != lastAgeBucket) {
             lastAgeBucket = bucket
             NavBus.logEvent("src_age_cross bucket=$bucket a=$rawAge k=${e.state.k}")

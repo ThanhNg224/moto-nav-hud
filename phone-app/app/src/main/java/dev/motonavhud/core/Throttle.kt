@@ -21,6 +21,7 @@ class Throttle(
     private val staleMs: Long = 15_000,
     private val navStaleMs: Long = 75_000,
     private val stepJumpM: Int = 30,
+    private val aliveMaxMs: Long = 600_000,
 ) {
     /** Rendered = trạng thái + tuổi nguồn tại một thời điểm gửi/đọc cụ thể. */
     data class Rendered(val state: NavState, val a: Int)
@@ -28,16 +29,18 @@ class Throttle(
     /**
      * Snapshot giữ MỐC THỜI GIAN NGUỒN ([sourceAt]); tuổi `a` và hết hạn được tính lại bằng [render]
      * ngay lúc đọc/gửi thật, nên snapshot xếp hàng lâu không bao giờ mang tuổi cũ hay k=1 đã hết hạn.
+     * [aliveAt] = lần gần nhất xác nhận thông báo Maps còn hiện diện (không làm mới `a`).
      */
     data class Emission(
         val state: NavState, val z: Int, val q: Int, val i: Int,
         val sourceAt: Long?, val staleMs: Long = 15_000, val navStaleMs: Long = 75_000,
+        val aliveAt: Long? = null, val aliveMaxMs: Long = 600_000,
     ) {
         fun render(now: Long): Rendered {
             if (state.k == NavState.K_IDLE) return Rendered(state, 0)
             val at = sourceAt ?: return Rendered(NavState.IDLE, 0)
             val age = (now - at).coerceIn(0, 999_999L)
-            if (now - at > expiryMs(state.k, staleMs, navStaleMs) && state.k != NavState.K_REROUTING) {
+            if (expired(state.k, now, at, aliveAt, staleMs, navStaleMs, aliveMaxMs) && state.k != NavState.K_REROUTING) {
                 return Rendered(NavState.IDLE, 0)
             }
             return Rendered(state, age.toInt())
@@ -46,6 +49,7 @@ class Throttle(
 
     private var latest: NavState = NavState.IDLE
     private var lastRealAt: Long? = null
+    private var aliveAt: Long? = null
     private var lastSent: NavState? = null
     private var lastSentAt = 0L
     private var q = 0
@@ -57,6 +61,17 @@ class Throttle(
         if (lastRealAt != null && newStep(prev, state)) stepId++
         latest = state
         lastRealAt = atMs
+        aliveAt = null // xác nhận sống của nguồn trước không áp cho cập nhật mới; lần kiểm tra kế tiếp (3 s) xác nhận lại
+    }
+
+    /**
+     * Thông báo Maps đang chọn vẫn còn hiện diện tại [atMs] (kiểm tra định kỳ). Chỉ gia hạn k=1 qua khoảng im dài
+     * (đứng đèn đỏ: Maps không đăng lại); KHÔNG làm mới `a` và không vượt [aliveMaxMs] kể từ bản đăng thật.
+     */
+    @Synchronized
+    fun confirmAlive(atMs: Long = clock()) {
+        val cur = aliveAt
+        if (cur == null || atMs > cur) aliveAt = atMs
     }
 
     @Synchronized
@@ -69,12 +84,12 @@ class Throttle(
         lastSent = eff
         lastSentAt = now
         q++
-        return Emission(eff, z, q, stepId, lastRealAt, staleMs, navStaleMs)
+        return Emission(eff, z, q, stepId, lastRealAt, staleMs, navStaleMs, aliveAt, aliveMaxMs)
     }
 
     private fun effective(now: Long): NavState {
         val at = lastRealAt ?: return NavState.IDLE
-        if (now - at <= expiryMs(latest.k, staleMs, navStaleMs)) return latest
+        if (!expired(latest.k, now, at, aliveAt, staleMs, navStaleMs, aliveMaxMs)) return latest
         return if (latest.k == NavState.K_REROUTING) latest else NavState.IDLE
     }
 
@@ -96,5 +111,17 @@ class Throttle(
         /** Ngưỡng im (ms) trước khi nguồn bị coi là hết hạn; dùng chung cho [effective] và [Emission.render]. */
         internal fun expiryMs(k: Int, staleMs: Long, navStaleMs: Long): Long =
             if (k == NavState.K_NAVIGATING) navStaleMs else staleMs
+
+        /**
+         * Hết hạn khi im quá [expiryMs]. Riêng k=1: nếu thông báo Maps còn sống (xác nhận trong [staleMs] gần đây)
+         * thì giữ tới [aliveMaxMs] kể từ bản đăng thật, để đứng đèn đỏ lâu không mất chỉ dẫn.
+         */
+        internal fun expired(
+            k: Int, now: Long, at: Long, aliveAt: Long?, staleMs: Long, navStaleMs: Long, aliveMaxMs: Long,
+        ): Boolean {
+            if (now - at <= expiryMs(k, staleMs, navStaleMs)) return false
+            val alive = k == NavState.K_NAVIGATING && aliveAt != null && now - aliveAt <= staleMs && now - at <= aliveMaxMs
+            return !alive
+        }
     }
 }

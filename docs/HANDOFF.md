@@ -28,7 +28,7 @@ Quét -> nối -> subscribe -> nhận frame, Demo (mũi tên, khoảng cách, t�
 1. Chạy lại `npm test`, build debug + release watch, gradle phone; đảm bảo xanh.
 2. Nếu ghi chú review vòng 4 cuối file còn phát hiện chưa xử lý: kiểm trong code, sửa lỗi đúng và thuộc phạm vi, chạy lại test.
 3. Cài rpk debug mới + APK mới (quy trình ở "Lưu ý vận hành"), nhờ người dùng xem đồng hồ: mũi tên mới (nhất là chéo 45°/135°, giữ làn), dòng trạng thái/chẩn đoán không bị cắt đáy màn tròn, Demo + rung. Xem log: `adb -s <serial> logcat -s MotoNav` (phone); log watch `[MotoNav]` xem qua công cụ của rpk nếu có.
-4. Thu thông báo Google Maps thật (S4): bật `NotificationCapture` trong app, đi/chạy chế độ xe máy ở VN, lưu fixture; đối chiếu `MapsNotificationParser` (đặc biệt câu dạng "Trên đường X, rẽ trái" hiện không ra hướng rẽ vì đã siết fallback; thêm test từ fixture thật).
+4. Thu thông báo Google Maps thật (S4): bật `NotificationCapture` trong app, đi/chạy chế độ xe máy ở VN, lưu fixture; đối chiếu `MapsNotificationParser` (câu "Trên đường X, rẽ trái" CÓ dấu phẩy đã ra hướng, có test `streetFirstVariants`; biến thể không dấu phẩy "Trên đường X rẽ trái" chưa nhận ra, chưa thấy dạng này trong thông báo Maps thật nên chưa sửa; thêm test từ fixture thật).
 5. Kiểm wrist-down/AOD (màn hình giữ sáng, app không bị dừng) và chạy thử đường thật.
 6. Điều tra vì sao tên app không hiện trong danh sách app đồng hồ (manifest name/icon) — việc nhỏ, tuỳ chọn.
 7. Dọn dẹp cuối (hỏi người dùng trước từng mục nhạy cảm): `/sdcard/Download/wearablelog/` (chứa khoá Xiaomi), bản `.rpk`/APK trong Download trên Oppo/Samsung, Notify trên Samsung, bật lại quyền/kết nối Mi Fitness, ảnh tạm. Cập nhật mục Tiến độ trong kế hoạch và README; `docs/plans/` không commit, xoá khi xong.
@@ -41,6 +41,13 @@ Quét -> nối -> subscribe -> nhận frame, Demo (mũi tên, khoảng cách, t�
   - Chống "MẤT DỮ LIỆU" giả khi đứng đèn đỏ/đường thẳng: mỗi 3 s kiểm tra ngầm `getActiveNotifications(arrayOf(selectedKey))` xác nhận notification ongoing còn sống (KHÔNG làm mới `a`; `a` chỉ gắn với lần Maps đăng thật, xem mục 0.4.2 bên dưới), vẫn về `k=0` ngay khi tắt Maps (đã xác nhận đứng yên 20 s giữ `k=1`, tắt Maps về `k=0` trong 28 ms).
   - Tối ưu hiệu năng & chống spam log: tắt `tickTimer` 1 Hz khi không debug trên watch, chỉ ghi thuộc tính reactive khi giá trị đổi, gộp count log 10 s; phía phone bỏ log `notify sent` mỗi gói, heartbeat chỉ log 30 s/lần, bỏ serialize JSON preview khi `MainActivity` đóng; thêm nút `Dừng HUD` ngay trên thanh thông báo.
   - Giữ nguyên Notify for Xiaomi để tiện cài/update `.rpk` các bản sau.
+
+## Giữ chỉ dẫn khi đứng chờ lâu (2026-11-25, `docs/protocol.md` v1.5)
+
+- Phone: `Throttle.confirmAlive` — khi thông báo Maps đang chọn còn hiện diện (kiểm tra mỗi 3 s trong `NavNotificationListener.verifySelectedAlive`, xác nhận gắn đúng `MapsSnapshot.version`), `k=1` không hết hạn ở 75 s mà giữ tới 600 s kể từ bản đăng thật. `a` KHÔNG được làm mới. Bản đăng mới (`Throttle.offer`) xoá xác nhận cũ; `publishMaps(..., aliveAtMs)` gắn xác nhận ngay cho snapshot vừa đọc.
+- Watch 0.4.5 (`versionCode` 11): `NAV_LOST_SOURCE_AGE_MS` 65000 → 660000 (lưới an toàn trên mốc 600 s của phone). rpk release: `watch-app/dist/dev.motonavhud.app.release.0.4.5.rpk` (chưa cài lên đồng hồ; cài qua Notify for Xiaomi). Phone vẫn 0.5.0 (`versionCode` 7), APK debug đã `adb install -r` lên OPPO CPH2873.
+- Rủi ro đã biết: thông báo Maps bị treo nhưng còn đăng có thể giữ mũi tên cũ tới 600 s. Chưa chạy đường thật có đèn đỏ 60–180 s để xác nhận.
+- Chưa làm: hiện "rồi rẽ…" (rẽ kế tiếp) — thông báo Maps 26.47 thật không có dòng này (xem fixture thật trong `MapsNotificationParserTest.realOppoAndroid17Maps26ProgressStyle`); cần bật `NotificationCapture` thu thêm thông báo trước khi thiết kế.
 
 ## Watch 0.4.3 (2026-11-25)
 
