@@ -1,220 +1,223 @@
-# S1 - Cài `.rpk` tự làm lên Xiaomi Watch S5 (bản VN/global, HyperOS)
+# Sideloading the Moto Nav HUD `.rpk` onto a Xiaomi Watch S5
 
-> Ngày: 2026-11-23. Đối tượng: chủ đồng hồ, không cần là chuyên gia. Thuật ngữ kỹ thuật giữ tiếng Anh.
-> File cần cài ở S1: `spikes/s0-hello-rpk/out/com.example.motonavhud.debug.0.0.1.rpk` (package `com.example.motonavhud`, ~9 KB). Sau này: HUD thật trong `watch-app/out/`.
-> Ký hiệu bằng chứng: **[XM]** = đã xác minh từ URL trích dẫn; **[S5?]** = chưa có bằng chứng trực tiếp trên S5. Độ tin cậy: cao / vừa / thấp.
+This guide is for the watch owner and does not assume expert knowledge. It explains how to install the Moto Nav HUD watch app (a Xiaomi Vela quick app, packaged as an `.rpk`) on a Xiaomi Watch S5 (global/Vietnam release, HyperOS) without going through an official store.
+
+- Written: 2026-11-23, updated for watch app v0.4.5.
+- File to install: `dev.motonavhud.app.release.0.4.5.rpk` (package `dev.motonavhud.app`). The build writes it to `watch-app/dist/`; copy it to `watch-app/out/`.
+- Tested on: Xiaomi Watch S5 46mm, firmware 3.222.007, paired with an OPPO phone on Android 17 running Mi Fitness global 3.60.0i.
+- Evidence tags: **[XM]** = verified from the cited URL; **[S5?]** = no direct evidence on the S5. Confidence: high / medium / low.
 
 ---
 
-## 0. Đọc trước: chọn đường nào?
+## 0. Which route should I pick?
 
-| Hạng | Route | Điểm mạnh | Điểm yếu | Bằng chứng trên S5 |
+**Short answer: use Route B (Notify for Xiaomi).** It is the route that actually worked on real hardware (see the note at the top of section 2 for why Route A did not).
+
+| Rank | Route | Pros | Cons | Evidence on S5 |
 |---|---|---|---|---|
-| **1 (khuyến nghị)** | **A. Mi Fitness gốc + trang debug ẩn `ThirdAppDebugFragment`, mở bằng `adb`** | Dùng đúng đường cài của Xiaomi; **không cần AuthKey**, không gỡ Mi Fitness, không đổi pairing; Mac đã có adb + Android SDK | Phụ thuộc tên class bị obfuscate trong Mi Fitness (bản mới có thể làm hỏng); phải chạy trên **đúng điện thoại đang ghép với đồng hồ** | Có 1 repo báo đã cài lên **Watch S5 + Xiaomi 15/HyperOS** bằng cách này (vừa) |
-| 2 | B. Notify for Xiaomi (Google Play) → Device → Third party app | Giao diện bấm, có hướng dẫn chính thức; trang hãng ghi S5 "Full" | Phải **gỡ / vô hiệu Mi Fitness** (một kết nối BLE tại một thời điểm); có thể cần bản trả phí; app bên thứ ba giữ AuthKey | S5 có trong bảng tương thích; tính năng "Third party app" chưa ai xác nhận riêng trên S5 (vừa) |
-| 3 | C. AstroBox (Android/desktop) | Miễn phí cho tính năng lõi, hỗ trợ "Xiaomi Watch S3 trở lên" | Giao diện/tài liệu tiếng Trung; đăng nhập tài khoản Xiaomi trong app bên thứ ba; cần cho đồng hồ "kết nối điện thoại mới" | Gián tiếp (S3 trở lên) (vừa–thấp) |
-| Không khuyến nghị | Gadgetbridge | Mã nguồn mở | S5 "chưa test kỹ", dùng Bluetooth Classic; chưa ai báo cài rpk trên S5; lấy key phức tạp | thấp |
-| Không khả thi cho bạn | Menu Debug chính thức của Mi Fitness (Tôi → Giới thiệu → Debug) | Chính thức | Bản Mi Fitness có menu này chỉ cấp qua kênh business của Xiaomi | — |
+| **1 (recommended)** | **B. Notify for Xiaomi** (Google Play) -> Device -> Third party app | Tap-through UI with official instructions; the vendor page lists the S5 as "Full"; **verified on the test watch** | Mi Fitness must be uninstalled or disabled (only one BLE connection at a time); may need the paid version; the third-party app holds your AuthKey | Worked on real hardware (Mi Fitness 3.60.0i, key taken from a Mi Fitness log export) |
+| 2 | A. Original Mi Fitness + hidden debug page opened with `adb` | Uses Xiaomi's own install path; no AuthKey; no Mi Fitness removal; no pairing change | Depends on obfuscated class names in Mi Fitness; **does not work on Mi Fitness global 3.60.0i** (the debug page was removed); must run against the phone paired with the watch | One repo reports success on a Watch S5 with an older Mi Fitness (medium); failed on 3.60.0i |
+| 3 | C. AstroBox (Android/desktop) | Free core features; supports "Xiaomi Watch S3 and later" | Chinese UI and docs; you sign in to your Xiaomi account inside a third-party app; the watch must "connect a new phone" | Indirect (S3 and later) (medium-low); not tested by us |
+| Not recommended | Gadgetbridge | Open source | S5 "not heavily tested", uses Bluetooth Classic; nobody has reported installing an rpk on an S5; getting the key is complicated | low |
+| Not available to most people | Official Mi Fitness Debug menu (Me -> About -> Debug) | Official | The Mi Fitness build with this menu is only given out through Xiaomi's business channel | n/a |
 
-**Điều quyết định trước tiên:** đồng hồ đang ghép với điện thoại nào?
-- Nếu là **một điện thoại Android có Mi Fitness** → cắm **chính điện thoại đó** vào Mac và đi Route A. Đừng chuyển đồng hồ sang chiếc Samsung SM-N770F chỉ để thử: ghép lại sang máy mới thường bắt buộc hủy liên kết, và hủy liên kết có thể xóa dữ liệu trên đồng hồ [S5?, vừa].
-- Nếu đồng hồ đang ghép với **iPhone** → không cài được `.rpk` từ iOS (rw4-cmatrix ghi rõ "iOS cannot install `.rpk`", vừa). Khi đó cần một điện thoại Android. Chiếc Samsung (Android 13) dùng được cho Route B/C, hoặc Route A sau khi ghép bằng Mi Fitness. Hãy hỏi lại trước khi hủy liên kết.
-- Nếu đồng hồ **chưa ghép với máy nào** → dùng Samsung: cài Mi Fitness từ Play Store, ghép, rồi đi Route A.
+**First decision: which phone is the watch paired with?**
+- **An Android phone with Mi Fitness:** use that same phone for everything below. Do not move the watch to another phone just to try this. Re-pairing to a new phone usually requires unlinking, and unlinking can erase data on the watch [S5?, medium].
+- **An iPhone:** an `.rpk` cannot be installed from iOS (the rw4-cmatrix project states "iOS cannot install `.rpk`", medium). You need an Android phone. Think carefully before unlinking the watch.
+- **Not paired with anything:** install Mi Fitness from the Play Store on an Android phone, pair the watch, then follow Route B.
 
 ---
 
-## 1. Việc chung cho mọi route
+## 1. Prerequisites and common steps
 
-### 1.1 Ghi lại hiện trạng (bắt buộc, 2 phút)
-1. Trên đồng hồ: Settings → About (Giới thiệu) → chụp ảnh **phiên bản firmware** và model.
-2. Trên điện thoại: Mi Fitness → Profile/Tôi → About (Giới thiệu) → ghi **version Mi Fitness**. Hoặc từ Mac:
+### 1.1 Record your current state (required, 2 minutes)
+1. On the watch: Settings -> About, then photograph the **firmware version** and model.
+2. On the phone: Mi Fitness -> Profile -> About, then note the **Mi Fitness version**. Or from a computer:
    `adb -s <SERIAL> shell dumpsys package com.xiaomi.wearable | grep versionName`
-3. Ghi ra giấy hoặc note cá nhân. Không commit vào repo.
+3. Keep this in a private note. Do not commit it to the repository.
 
-### 1.2 Đưa file `.rpk` lên điện thoại (từ Mac)
+### 1.2 Put the `.rpk` on the phone (from a computer with adb)
+Run from the project root (`<project>/`):
 ```bash
-adb devices -l                       # lấy serial của điện thoại đang ghép đồng hồ
-adb -s <SERIAL> push "/Users/thanhng224/Dev/Personal/Xiaomi watch apps/moto-nav-hud/spikes/s0-hello-rpk/out/com.example.motonavhud.debug.0.0.1.rpk" /sdcard/Download/
-adb -s <SERIAL> shell ls -l /sdcard/Download/ | grep motonavhud   # phải thấy file ~9 KB
+adb devices -l                       # find the serial of the phone paired with the watch
+adb -s <SERIAL> push watch-app/out/dev.motonavhud.app.release.0.4.5.rpk /sdcard/Download/
+adb -s <SERIAL> shell ls -l /sdcard/Download/ | grep motonavhud   # the file should be listed
 ```
-- Samsung hiện tại: `<SERIAL>` = `RF8NA2EZKZK`.
-- Nếu file picker không hiện file `.rpk`, thử thêm một bản có tên ngắn: `adb -s <SERIAL> shell cp /sdcard/Download/com.example.motonavhud.debug.0.0.1.rpk /sdcard/Download/hello.rpk`.
+- Alternatively, copy the file to the phone any other way (USB file transfer, cloud drive).
+- If the file picker does not show the `.rpk`, try a copy with a shorter name: `adb -s <SERIAL> shell cp /sdcard/Download/dev.motonavhud.app.release.0.4.5.rpk /sdcard/Download/hello.rpk`.
 
-### 1.3 Quy tắc AuthKey (Route B, C, Gadgetbridge)
-- AuthKey là khóa toàn quyền điều khiển đồng hồ qua Bluetooth. bandbbs gọi nó là "敏感凭据" và dặn không chụp màn hình, không chia sẻ (https://wiki.bandbbs.cn/Guides/watchface_custom_tool/watchface_custom_tool-install.html, cao).
-- **Không dán AuthKey vào chat với AI, không ghi vào bất kỳ file nào trong repo** (kể cả `.env`, note, log). Nếu cần lưu thì dùng password manager.
-- Nếu nghi đã lộ: gỡ thiết bị khỏi công cụ bên thứ ba, rồi bind lại qua app chính thức để đổi key (bandbbs wiki, vừa).
-- Route A không cần AuthKey. Đây là một lý do nó được xếp hạng 1.
+### 1.3 AuthKey rules (Routes B and C, Gadgetbridge)
+- The AuthKey gives full control of the watch over Bluetooth. The bandbbs wiki calls it a sensitive credential and says not to screenshot or share it (https://wiki.bandbbs.cn/Guides/watchface_custom_tool/watchface_custom_tool-install.html, high).
+- **Never paste the AuthKey into an AI chat or into any file in the repository** (including `.env`, notes, logs). If you must store it, use a password manager.
+- If you think it has leaked: remove the device from the third-party tool, then re-bind through the official app to rotate the key (bandbbs wiki, medium).
+- Route A does not need an AuthKey, which is one of its advantages.
 
 ---
 
-## 2. Route A (khuyến nghị): Mi Fitness gốc + trang debug ẩn qua adb
+## 2. Route B (recommended, verified): Notify for Xiaomi
 
-> **Lưu ý:** Route A **không hoạt động** trên Mi Fitness global 3.60.0i (không có `ThirdAppDebugFragment`). Route thực tế đã dùng và xác minh là **Notify for Xiaomi** (`com.mc.xiaomi1`) trên điện thoại đang ghép với đồng hồ, key nhập từ log export của Mi Fitness, cài rpk qua **Device → Third party app** (xem mục 3).
+> **Why this is recommended:** Route A does **not work** on Mi Fitness global 3.60.0i (the `ThirdAppDebugFragment` class is gone). The route that was actually used and verified is **Notify for Xiaomi** (`com.mc.xiaomi1`) on the phone paired with the watch, with the key taken from a Mi Fitness log export, installing the rpk through **Device -> Third party app**.
 
-### Bằng chứng
-- Bản Mi Fitness quốc tế (`com.xiaomi.wearable`) có sẵn class `com.xiaomi.xms.wearable.ui.debug.ThirdAppDebugFragment` với 4 nút: "click to input package name", "install third app", "uninstall third app", "go third app list". Không có menu dẫn tới trang này, nên phải mở bằng `app_process` chạy dưới user shell qua adb. Nguồn: https://github.com/oryonatan/xiaomi-band-development/blob/develop/docs/deployment-real-device.md (MIT, cập nhật 2026-04). **[XM]** trên Mi Band 8 Pro quốc tế; script có xử lý riêng bàn phím và file picker Samsung (vừa).
-- Repo https://github.com/CatWar2/xiaomi-watch-s5-notes-app (cập nhật 2026-11-18) ghi: "tested on real hardware (Xiaomi Watch S5 + Xiaomi 15 on HyperOS)" và cài bằng `ThirdAppDebugFragment`. **[XM, 1 repo, 1 sao, code do AI sinh]**: độ tin cậy **vừa** cho S5.
-- Đường cài này khớp với quy trình chính thức trong FAQ Vela ("Mi Fitness → Me → About → Debug → third-party apps → nhập package → install → chọn rpk local"). https://iot.mi.com/vela/quickapp/en/guide/other/faq.html (cao). Route A chỉ là cách mở cùng màn hình đó mà không cần bản Mi Fitness business.
+### Evidence
+- The vendor compatibility page lists the **Xiaomi Watch S5 as "Full"**, with the official-app column saying **"Must Uninstall"**. The page also has a section on installing self-made `.rpk` apps (VelaJS). http://www.mibandnotify.com/xiaomi-mi-band/ **[XM]** (medium: the vendor's own claim).
+- Official instructions: "Open Notify -> Device -> Third party app -> upload .rpk". Support "depends on firmware" and the S5 is not mentioned separately. http://www.mibandnotify.com/xiaomi-mi-band/notify-xms-app-instructions.php **[XM]** (medium).
+- Price: Free $0, Pro $3 (one-time purchase), no trial seen. It is unclear whether "Third party app" needs Pro; rw4-cmatrix also says it is undocumented (low).
+- The setup wizard can obtain the pairing key **through your Xiaomi account**, so Mi Fitness does not need to stay on the phone. https://github.com/hyperpostulate/rw4-cmatrix (medium; tested on Redmi Watch 4).
 
-### Điều kiện
-- Điện thoại Android **đang ghép và kết nối** với S5 qua **Mi Fitness bản quốc tế** `com.xiaomi.wearable`. Bản TQ `com.xiaomi.wearable.chn` không dùng được (theo tài liệu oryonatan, vừa). Region tài khoản VN/global: chưa có bằng chứng ảnh hưởng [S5?, thấp].
-- USB debugging bật trên điện thoại đó, `adb devices` thấy máy.
-- Mac: Android SDK có `build-tools` (d8) + `platforms`, và `javac`. **Đã kiểm tra: Mac này có** `~/Library/Android/sdk` (build-tools 34–37, platform 33/34) và openjdk 21.
-- Không cần root, AuthKey hay gỡ app nào.
+### Prerequisites
+- An Android phone. The "Notify for Xiaomi/Mi Band 8-11" app (`com.mc.xiaomi1`) from Google Play.
+- The Xiaomi account **the watch is currently bound to**, signed in inside Notify's wizard (or the key obtained as described above).
+- Mi Fitness must not hold the BLE connection: uninstall it, or force-stop it and revoke its "Nearby devices" permission.
+- The `.rpk` in the phone's Download folder (section 1.2).
 
-### Các bước
-1. Hoàn thành mục 1.1 và 1.2 (rpk nằm ở `/sdcard/Download/`).
-2. Mở Mi Fitness, xác nhận đồng hồ đang **Connected**. Để đồng hồ sát điện thoại, pin trên 30%.
-3. Tạo launcher `.dex`. Lấy `LaunchFragment.java` từ `scripts/deploy.sh` của repo oryonatan (đoạn heredoc `JAVA`). **Đọc code trước khi chạy**: nó chỉ load class của Mi Fitness rồi gọi `startActivity` tới `CommonBaseActivity`. Biên dịch trong thư mục tạm, **không** đặt trong repo:
+### Steps
+1. Complete sections 1.1 and 1.2.
+2. **Do not tap "Unpair" in Mi Fitness.** Unpairing invalidates the key (Gadgetbridge docs, high; rw4-cmatrix: "do not un-pair... before uninstalling").
+3. On the phone that has Mi Fitness: Settings -> Apps -> Mi Fitness -> **Force stop**, then Permissions -> **Nearby devices -> Don't allow**. Also disable Mi Fitness in battery/autostart settings if present. The vendor page says "Must Uninstall": if Notify still reports a conflict, uninstall Mi Fitness (without unpairing).
+4. Install Notify from the Play Store, open it, run the wizard, choose the S5, and sign in to your Xiaomi account **inside the app**. Do not copy the key anywhere else.
+5. Wait for the connected status. The watch may ask you to confirm pairing; accept.
+6. In Notify: **Device** -> **Third party app** -> pick `dev.motonavhud.app.release.0.4.5.rpk` from **Download** -> follow the on-screen instructions, keeping the watch close to the phone.
+7. On the watch, find **"Moto Nav HUD"** in the app list and open it (see section 6).
+
+### Restoring Mi Fitness afterwards
+1. In Notify: disconnect or force-stop Notify and revoke its Nearby devices permission. Do not remove the device from your account.
+2. Re-enable the permission for Mi Fitness (or reinstall it and sign in with the same account), open it, and wait for the watch to reconnect.
+3. Check that "Moto Nav HUD" is still on the watch and that health data still syncs. That reconnecting works without re-pairing is an **inference** [S5?, medium].
+
+### Troubleshooting
+- Cannot connect: Mi Fitness is still running in the background and holding BLE. Force-stop it again and check Nearby devices.
+- No "Third party app" entry: the Notify app is outdated, or the feature needs Pro (unclear). Update the app and check the purchase screen.
+- Install fails: the S5 firmware may block it. Write down the exact error text and report it.
+
+---
+
+## 3. Route A: original Mi Fitness + hidden debug page via adb
+
+> **Status: does not work on Mi Fitness global 3.60.0i.** That build no longer contains `ThirdAppDebugFragment` (see `spikes/s1-launcher/README.md`). Use this route only if you have an older Mi Fitness build that still has the class.
+
+### Evidence
+- The international Mi Fitness (`com.xiaomi.wearable`) used to ship the class `com.xiaomi.xms.wearable.ui.debug.ThirdAppDebugFragment` with four buttons: "click to input package name", "install third app", "uninstall third app", "go third app list". No menu leads to it, so it must be opened with `app_process` run as the shell user through adb. Source: https://github.com/oryonatan/xiaomi-band-development/blob/develop/docs/deployment-real-device.md (MIT, updated 2026-04). **[XM]** on an international Mi Band 8 Pro; the script has special handling for the Samsung keyboard and file picker (medium).
+- The repo https://github.com/CatWar2/xiaomi-watch-s5-notes-app (updated 2026-11-18) states "tested on real hardware (Xiaomi Watch S5 + Xiaomi 15 on HyperOS)" and installs via `ThirdAppDebugFragment`. **[XM, 1 repo, 1 star, AI-generated code]**: confidence **medium** for the S5.
+- This matches Xiaomi's official flow in the Vela FAQ ("Mi Fitness -> Me -> About -> Debug -> third-party apps -> enter package -> install -> choose local rpk"). https://iot.mi.com/vela/quickapp/en/guide/other/faq.html (high). Route A is just a way to open the same screen without the business build of Mi Fitness.
+
+### Prerequisites
+- An Android phone **paired and connected** to the S5 through **international Mi Fitness** `com.xiaomi.wearable`. The China build `com.xiaomi.wearable.chn` does not work (per the oryonatan docs, medium). Whether the VN/global account region matters is unknown [S5?, low].
+- USB debugging enabled on that phone, and `adb devices` lists it.
+- A computer with the Android SDK (`build-tools` including d8, plus `platforms`) and `javac`.
+- No root, no AuthKey, and no app removal needed.
+
+### Steps
+1. Complete sections 1.1 and 1.2 (the rpk is in `/sdcard/Download/`).
+2. Open Mi Fitness and confirm the watch shows **Connected**. Keep the watch next to the phone with more than 30% battery.
+3. Build the launcher `.dex` from the project's launcher spike: see `spikes/s1-launcher/README.md` (it is a rewrite of `LaunchFragment` from the oryonatan repo's `scripts/deploy.sh`). **Read the code before running it**: it only loads Mi Fitness classes and calls `startActivity` to `CommonBaseActivity`. Build in a temporary folder or use the spike's `build.sh`:
    ```bash
    SDK=~/Library/Android/sdk
    javac -source 8 -target 8 -bootclasspath $SDK/platforms/android-34/android.jar LaunchFragment.java -d classes
    $SDK/build-tools/36.0.0/d8 classes/LaunchFragment.class --output dex/
    adb -s <SERIAL> push dex/classes.dex /data/local/tmp/launch.dex
    ```
-4. Mở trang debug ẩn:
+   (Adjust the SDK path and build-tools version to your machine.)
+4. Open the hidden debug page:
    ```bash
    APK=$(adb -s <SERIAL> shell pm path com.xiaomi.wearable | head -1 | sed 's/package://' | tr -d '\r')
    adb -s <SERIAL> shell "CLASSPATH=/data/local/tmp/launch.dex app_process / LaunchFragment $APK"
    ```
-   Kỳ vọng: in `SUCCESS`, và trên điện thoại hiện trang có 4 nút tiếng Anh nói trên.
-5. Trên điện thoại, bấm tay (không cần tự động hóa):
-   1. **click to input package name** → gõ `com.example.motonavhud` → OK. Bàn phím Samsung có thể tự chèn dấu cách sau dấu chấm đầu tiên, nên xóa nó trước khi bấm OK.
-   2. **install third app** → file picker mở → vào **Downloads** → chọn `com.example.motonavhud.debug.0.0.1.rpk`.
-   3. Chờ đồng hồ nhận file. Giữ màn hình điện thoại bật và Mi Fitness ở foreground.
-6. Trên đồng hồ: mở danh sách app (bấm nút trên) → tìm **"Moto Nav HUD"** (icon mũi tên) → mở → làm theo **Checklist S1** (mục 6).
-7. Gỡ: lặp lại bước 4 → nhập package → **uninstall third app**. Xem danh sách: **go third app list**.
-8. Dọn dẹp: `adb -s <SERIAL> shell rm /data/local/tmp/launch.dex` (không bắt buộc).
+   Expected: it prints `SUCCESS` and the phone shows a page with the four English buttons above.
+5. On the phone, tap manually (no automation needed):
+   1. **click to input package name** -> type `dev.motonavhud.app` -> OK. The Samsung keyboard may insert a space after the first dot; delete it before tapping OK.
+   2. **install third app** -> the file picker opens -> go to **Downloads** -> choose `dev.motonavhud.app.release.0.4.5.rpk`.
+   3. Wait for the watch to receive the file. Keep the phone screen on and Mi Fitness in the foreground.
+6. On the watch: open the app list (press the top button), find **"Moto Nav HUD"** and open it (see section 6).
+7. To uninstall: repeat step 4, enter the package name, then tap **uninstall third app**. To list apps: **go third app list**.
+8. Cleanup (optional): `adb -s <SERIAL> shell rm /data/local/tmp/launch.dex`.
 
-### Ghép nối / Mi Fitness
-- Không thay đổi gì: Mi Fitness vẫn là app giữ kết nối và chính nó đẩy rpk. Không cần force-stop, không cần khôi phục.
+### Pairing / Mi Fitness
+- Nothing changes: Mi Fitness keeps the connection and pushes the rpk itself. No force-stop or restore needed.
 
-### Lỗi thường gặp
-| Triệu chứng | Nguyên nhân khả dĩ | Xử lý |
+### Troubleshooting
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| `ClassNotFoundException` / `NoSuchMethodException` (`FragmentParams$b`, method `e`/`b`) | Mi Fitness đã đổi tên class obfuscate | Ghi lại version Mi Fitness và báo lại. Cần dò lại tên class (Claude có thể làm bằng cách phân tích APK) hoặc chuyển sang Route B |
-| `ERROR: ... not found` / `pm path` rỗng | Không có Mi Fitness bản quốc tế | Kiểm tra package `com.xiaomi.wearable` |
-| `SecurityException` khi startActivity | Android/ROM chặn shell mở activity không export | Báo lại kèm log; thử Route B |
-| Bấm install nhưng đồng hồ không nhận | Đồng hồ ngắt kết nối, hoặc Mi Fitness bị kill | Mở lại Mi Fitness, chờ Connected, thử lại |
-| App cũ không cập nhật | Đồng hồ cache bản cũ | Tăng `versionCode` khi build lại, hoặc uninstall trước (oryonatan, vừa) |
-| Báo lỗi chữ ký | S1 không dùng interconnect nên không nên xảy ra | Debug-signed rpk đủ dùng cho app không gọi interconnect (rw4-cmatrix, vừa) |
-
----
-
-## 3. Route B: Notify for Xiaomi
-
-### Bằng chứng
-- Trang tương thích của hãng liệt kê **Xiaomi Watch S5: "Full"**, cột official app: **"Must Uninstall"**. Trang có mục cài app `.rpk` tự làm (VelaJS). http://www.mibandnotify.com/xiaomi-mi-band/ **[XM]** (vừa: trang tự công bố).
-- Hướng dẫn chính thức: "Open Notify → Device → Third party app → upload .rpk". Hỗ trợ "tùy firmware", không nêu riêng S5. http://www.mibandnotify.com/xiaomi-mi-band/notify-xms-app-instructions.php **[XM]**, S5 [S5?] (vừa).
-- Giá: bản Free $0, Pro $3 (mua một lần), không thấy trial. Không xác định được "Third party app" có cần Pro hay không. rw4-cmatrix cũng ghi là "không được tài liệu hóa" (thấp).
-- Cài đặt dùng wizard lấy pairing key **qua tài khoản Xiaomi**, nên Mi Fitness không cần ở lại máy. https://github.com/hyperpostulate/rw4-cmatrix (vừa; test trên Redmi Watch 4).
-
-### Điều kiện
-- Điện thoại Android. Chiếc Samsung (Android 13) dùng được. App "Notify for Xiaomi/Mi Band 8-11" (`com.mc.xiaomi1`) từ Google Play.
-- Tài khoản Xiaomi **mà đồng hồ đang bind**, đăng nhập trong wizard của Notify.
-- Mi Fitness không được giữ BLE: phải gỡ, hoặc force-stop và thu quyền "Nearby devices".
-
-### Các bước
-1. Mục 1.1 và 1.2.
-2. **Không bấm "Unpair/Hủy liên kết" trong Mi Fitness.** Hủy liên kết sẽ làm key mất hiệu lực (Gadgetbridge docs, cao; rw4-cmatrix: "do not un-pair... before uninstalling").
-3. Trên điện thoại đang có Mi Fitness: Settings → Apps → Mi Fitness → **Force stop**, rồi Permissions → **Nearby devices → Don't allow**. Tắt Mi Fitness trong battery/autostart nếu có. Trang hãng ghi "Must Uninstall": nếu Notify vẫn báo xung đột thì gỡ Mi Fitness (không unpair).
-4. Cài Notify từ Play Store → mở → chạy wizard → chọn đồng hồ S5 → đăng nhập tài khoản Xiaomi **ngay trong app**. Đừng chép key ra ngoài.
-5. Chờ trạng thái connected. Đồng hồ có thể hỏi xác nhận ghép, hãy bấm đồng ý.
-6. Notify → **Device** → **Third party app** → chọn file trong **Download** → làm theo hướng dẫn trên màn hình, giữ đồng hồ gần điện thoại.
-7. Trên đồng hồ: tìm "Moto Nav HUD" → mở → Checklist S1.
-
-### Khôi phục Mi Fitness sau khi xong
-1. Trong Notify: ngắt kết nối hoặc force-stop Notify, thu quyền Nearby devices của Notify. Đừng xóa thiết bị khỏi tài khoản.
-2. Bật lại quyền cho Mi Fitness (hoặc cài lại, đăng nhập cùng tài khoản) → mở → chờ đồng hồ tự kết nối lại.
-3. Kiểm tra đồng hồ vẫn còn "Moto Nav HUD" và dữ liệu sức khỏe đồng bộ được. Việc kết nối lại không cần ghép lại là **suy luận** [S5?, vừa].
-
-### Lỗi thường gặp
-- Không kết nối được: Mi Fitness vẫn chạy ngầm và giữ BLE. Force-stop lại, kiểm tra Nearby devices.
-- Không thấy mục Third party app: bản app cũ, hoặc tính năng cần Pro (chưa rõ). Cập nhật app rồi xem màn hình mua.
-- Cài báo lỗi: firmware S5 có thể chặn. Ghi nguyên văn lỗi và báo lại.
+| `ClassNotFoundException` / `NoSuchMethodException` (`FragmentParams$b`, method `e`/`b`), or `ClassNotFoundException` for `ThirdAppDebugFragment` | Mi Fitness renamed its obfuscated classes, or removed the debug page (as in 3.60.0i) | Note the Mi Fitness version and use Route B instead |
+| `ERROR: ... not found` / empty `pm path` | International Mi Fitness is not installed | Check the package `com.xiaomi.wearable` |
+| `SecurityException` on `startActivity` | The Android ROM blocks the shell from opening non-exported activities | Use Route B |
+| Tapping install does nothing on the watch | Watch disconnected, or Mi Fitness was killed | Reopen Mi Fitness, wait for Connected, retry |
+| An old app version does not update | The watch caches the old version | Increase `versionCode` when rebuilding, or uninstall first (oryonatan, medium) |
+| Signature error | Should not happen for an app that does not use interconnect | A debug-signed rpk is enough for apps that do not call interconnect (rw4-cmatrix, medium) |
 
 ---
 
 ## 4. Route C: AstroBox
 
-### Bằng chứng
-- Tài liệu chính thức: "Xiaomi Watch S3 及以后" thuộc nhóm hỗ trợ đầy đủ. Kết nối bằng **đồng bộ tài khoản Xiaomi** (khuyến nghị) hoặc nhập AuthKey thủ công. Tài liệu **không** nói cách lấy AuthKey. https://abox.run/docs/usage/connection **[XM]**, S5 suy ra từ "S3 trở lên" (vừa–thấp).
-- Cài file local: thẻ loại tài nguyên trên trang thiết bị hoặc nút "+" trong hàng đợi (queue) → chọn file → nếu không tự cài thì bấm "开始". https://abox.run/docs/usage/resource **[XM]**. Trang này không nhắc riêng `.rpk`/快应用, nhưng trang chủ nói cài được "quick apps" (vừa).
-- Android 10 trở lên (Samsung Android 13 đạt), cần quyền Location (precise), Bluetooth, Nearby devices; tải APK từ trang chính thức (V2.2.6). https://abox.run/docs/usage/install **[XM]**. Mã nguồn: https://github.com/AstralSightStudios/AstroBox-NG (AGPL-3.0). Tính năng lõi miễn phí (https://astrobox.online).
+### Evidence
+- Official docs: "Xiaomi Watch S3 and later" is in the fully supported group. Connect by **Xiaomi account sync** (recommended) or by entering the AuthKey manually. The docs do **not** say how to get the AuthKey. https://abox.run/docs/usage/connection **[XM]**; S5 inferred from "S3 and later" (medium-low).
+- Installing a local file: use the resource card on the device page or the "+" button in the queue, choose the file, and if it does not install automatically tap the start button ("开始"). https://abox.run/docs/usage/resource **[XM]**. That page does not mention `.rpk`/quick apps specifically, but the home page says quick apps can be installed (medium).
+- Requires Android 10 or later, Location (precise), Bluetooth and Nearby devices permissions; download the APK from the official site (V2.2.6). https://abox.run/docs/usage/install **[XM]**. Source code: https://github.com/AstralSightStudios/AstroBox-NG (AGPL-3.0). Core features are free (https://astrobox.online).
 
-### Các bước (tóm tắt, giao diện tiếng Trung)
-1. Mục 1.1 và 1.2. Force-stop Mi Fitness và thu quyền Nearby devices như Route B bước 3. Tài liệu AstroBox không nói phải làm vậy; đây là suy luận từ quy tắc một kết nối [S5?, vừa].
-2. Cài AstroBox APK từ trang chính thức → cấp quyền → hoàn tất OOBE.
-3. Mở thẻ thiết bị (viên nang ở đáy) → nút chuyển thiết bị → **导入** → đăng nhập tài khoản Xiaomi → bấm **登录** (có thể có xác minh 2 bước).
-4. Trên đồng hồ: Settings → 我的设备/My device → **连接新手机** (Connect new phone) → dấu tick xanh. Trong AstroBox chọn S5 → đồng hồ rung → tick xanh lần nữa → trên Android bấm **配对与连接** ở thông báo ghép.
-   - Cảnh báo: chưa rõ "连接新手机" có làm đồng hồ mất kết nối với Mi Fitness lâu dài hay không [S5?, thấp]. Làm sau cùng nếu Route A/B thất bại.
-5. Mở queue → **+** → chọn loại 快应用/quick app → chọn file trong Download → bấm **开始** nếu cần.
-6. Đồng hồ → "Moto Nav HUD" → Checklist S1.
-7. Khôi phục Mi Fitness giống Route B. Có thể phải "连接新手机" lần nữa từ Mi Fitness [S5?, thấp].
-
----
-
-## 5. Route không khuyến nghị (ghi để tham khảo)
-
-- **Gadgetbridge**: Watch S5 được ghi "Mostly supported", nhưng kèm câu "As we don't have that device it is not known if it works correctly", "not heavily tested" (https://gadgetbridge.org/gadgets/wearables/xiaomi/, cao về nội dung trang). Issue #7197 cho thấy S5 kết nối bằng **Bluetooth Classic (RFCOMM)** và từng bị nhận nhầm là S4. Chưa có báo cáo cài rpk trên S5 (https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/7197, vừa). Tài liệu protobuf có liệt kê "Flashing (... rpk)" (https://gadgetbridge.org/basics/topics/xiaomi-protobuf/, cao). Để lấy key phải dò log Mi Fitness hoặc dùng "Xiaomi Cloud Tokens Extractor", tức là đưa mật khẩu Xiaomi cho script bên thứ ba (https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/, cao). Maintainer cũng cảnh báo rủi ro brick khi cài tài nguyên không hỗ trợ. → Chỉ đáng thử nếu sau này muốn bỏ Mi Fitness hẳn.
-- **表盘自定义工具 (bandbbs)**: liệt kê S5, "蓝牙一键安装" với AuthKey đọc từ Mi Fitness (Mi Fitness → 我的 → 关于 → bấm logo cam nhiều lần → dùng "AuthKey reader" trong tool). Tool chủ yếu phục vụ tài nguyên trong kho "探索", chưa rõ có cài file `.rpk` local không. Cũng dùng "连接新手机" (wiki bandbbs, vừa). Thao tác "bấm logo/phiên bản nhiều lần" trong bản Mi Fitness quốc tế **không tìm được nguồn xác nhận** (thấp).
-- **Menu Debug chính thức** (Mi Fitness → Me → About → Debug → third-party apps): có thật, nhưng FAQ ghi bản Mi Fitness có menu này được cấp "through business group" (https://iot.mi.com/vela/quickapp/en/guide/other/faq.html, cao). Bấm vào số phiên bản trên Mi Fitness bản Play Store **không** được tài liệu nào xác nhận là mở ra menu này (thấp). Có thể thử 10 lần bấm, vô hại, nhưng đừng kỳ vọng.
-- **MiWearBridge(-fixed)**: LSPosed, cần root. Không phù hợp.
+### Steps (summary; the UI is in Chinese)
+1. Complete sections 1.1 and 1.2. Force-stop Mi Fitness and revoke Nearby devices as in Route B step 3. The AstroBox docs do not require this; it is inferred from the one-connection rule [S5?, medium].
+2. Install the AstroBox APK from the official site, grant permissions, and finish the first-run setup (OOBE).
+3. Open the device card (the capsule at the bottom) -> device switcher -> **导入** (import) -> sign in to your Xiaomi account -> tap **登录** (log in). Two-step verification may appear.
+4. On the watch: Settings -> **我的设备** (My device) -> **连接新手机** (Connect new phone) -> green tick. In AstroBox pick the S5; the watch vibrates; tap the green tick again; then on Android tap **配对与连接** (pair and connect) in the pairing notification.
+   - Warning: it is unknown whether "Connect new phone" permanently disconnects the watch from Mi Fitness [S5?, low]. Do this last, only if Routes A and B fail.
+5. Open the queue -> **+** -> choose the quick app (快应用) type -> pick `dev.motonavhud.app.release.0.4.5.rpk` in Download -> tap **开始** if needed.
+6. On the watch, open "Moto Nav HUD" (section 6).
+7. Restore Mi Fitness as in Route B. You may have to tap "连接新手机" again from Mi Fitness [S5?, low].
 
 ---
 
-## 6. Checklist S1: quan sát trên đồng hồ sau khi mở "Moto Nav HUD"
+## 5. Routes not recommended (for reference)
 
-Mở app, quan sát **ít nhất 2 phút**, không chạm màn hình. Chụp 1–2 ảnh màn hình đồng hồ (giữ đồng thời nút trên + nút dưới, hoặc chụp bằng điện thoại).
+- **Gadgetbridge**: the Watch S5 is listed as "Mostly supported", with the caveats "As we don't have that device it is not known if it works correctly" and "not heavily tested" (https://gadgetbridge.org/gadgets/wearables/xiaomi/, high for the page content). Issue #7197 shows the S5 connects over **Bluetooth Classic (RFCOMM)** and was once misdetected as an S4; there is no report of installing an rpk on an S5 (https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/7197, medium). The protobuf docs list "Flashing (... rpk)" (https://gadgetbridge.org/basics/topics/xiaomi-protobuf/, high). Getting the key means digging through Mi Fitness logs or using "Xiaomi Cloud Tokens Extractor", i.e. handing your Xiaomi password to a third-party script (https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/, high). The maintainers also warn of brick risk when installing unsupported resources. Only worth trying if you later want to drop Mi Fitness entirely.
+- **bandbbs watch-face customization tool** (Chinese): lists the S5 and offers one-tap Bluetooth install using an AuthKey read from Mi Fitness (Mi Fitness -> Me -> About -> tap the orange logo repeatedly -> use the "AuthKey reader" in the tool). It mainly serves resources from its own catalog; whether it installs a local `.rpk` is unclear. It also uses "connect new phone" (bandbbs wiki, medium). The "tap the logo/version repeatedly" trick in the international Mi Fitness has **no confirming source** (low).
+- **Official Debug menu** (Mi Fitness -> Me -> About -> Debug -> third-party apps): it exists, but the FAQ says the Mi Fitness build with this menu is issued "through business group" (https://iot.mi.com/vela/quickapp/en/guide/other/faq.html, high). No document confirms that tapping the version number in the Play Store build opens it (low). Trying 10 taps is harmless, but do not expect it to work.
+- **MiWearBridge(-fixed)**: needs LSPosed and root. Not suitable.
 
-| # | Quan sát | Kỳ vọng (theo `src/pages/index/index.ux`) | Ghi lại |
-|---|---|---|---|
-| 1 | App có trong danh sách app, tên + icon | "Moto Nav HUD", icon mũi tên trắng | có/không |
-| 2 | Mở được, thời gian từ lúc bấm tới khi có hình | Nhanh (< 2 s) | số giây ước lượng |
-| 3 | Nền | Đen tuyền | đúng/sai |
-| 4 | Dòng "Hello S5" | Chữ trắng lớn, giữa màn hình | hiển thị/không |
-| 5 | Dòng "Đường Nguyễn Văn Linh ơ ư ế ộ" | Dấu tiếng Việt đúng, không ô vuông □, không `?`, không mất dấu | chụp ảnh; ghi ký tự nào sai |
-| 6 | Mũi tên | Mũi tên trắng 128 px, **xoay 45°** (chéo) | chéo / thẳng / không hiện |
-| 7 | Bố cục | Cân giữa, không bị cắt ở mép tròn, kích thước hợp lý | Nếu mọi thứ **to gấp đôi / bị cắt** hoặc **nhỏ một nửa** thì ghi lại. Repo S5 khác dùng `designWidth: 240` trong khi spike dùng 480 (vừa) |
-| 8 | Màn hình giữ sáng | **Không tự tắt/không về mặt đồng hồ** sau timeout bình thường | giây tới khi tắt (nếu tắt) |
-| 9 | Thông báo lỗi | Không có | **chép nguyên văn** mọi chữ lỗi (cả tiếng Trung) |
-| 10 | Thoát và mở lại (vuốt phải / nút) | Mở lại bình thường | ok/lỗi |
+---
 
-**Báo lại cho Claude (copy mẫu):**
+## 6. After installing: what to check on the watch
+
+Open "Moto Nav HUD" and confirm that:
+1. It appears in the watch app list with its name and icon.
+2. It opens quickly (under about 2 seconds) with no error message.
+3. It exits and reopens normally.
+
+If something looks wrong, write down any error text verbatim (including Chinese text) and take a screenshot of the watch (hold the top and bottom buttons together, or capture from the phone).
+
+For reference, the historical S0/S1 "hello" spike (package `com.example.motonavhud`, `spikes/s0-hello-rpk/`) was verified with a longer visual checklist: black background; the text "Hello S5"; the Vietnamese test line "Đường Nguyễn Văn Linh ơ ư ế ộ" (a street name plus diacritic test characters) rendering with correct diacritics (no boxes or `?`); a white 128 px arrow rotated 45 degrees; centered layout not clipped at the round edge; the screen staying on; and no errors. If everything looks twice as large, clipped, or half-size, note it: another S5 repo uses `designWidth: 240` while the spike uses 480.
+
+**Suggested report template:**
 ```
-Route đã dùng: A / B / C
+Route used: A / B / C
 Phone: <model>, Android <x>; Mi Fitness version: <x>; Watch S5 firmware: <x>
-Cài: thành công / lỗi "<nguyên văn>"
-1..10: <kết quả từng dòng>
-Ảnh: <đính kèm>
+Install: success / error "<verbatim text>"
+Observations: <what you saw>
+Screenshots: <attached>
 ```
-Không gửi AuthKey, số serial đồng hồ, địa chỉ MAC hay ảnh có chứa key.
+Do not share your AuthKey, watch serial number, MAC address, or any screenshot that contains a key.
 
 ---
 
-## 7. An toàn
+## 7. Safety
 
-- **Không factory-reset đồng hồ, không "Unpair/Hủy liên kết"** trong Mi Fitness để thử. Reset đổi Bluetooth MAC và vô hiệu key (Gadgetbridge docs, cao), xóa dữ liệu, có thể kéo theo phải ghép lại từ đầu.
-- **Ghi firmware + version Mi Fitness trước** (mục 1.1). Tạm **tắt tự cập nhật** Mi Fitness (Play Store → Mi Fitness → ⋮ → bỏ "Enable auto update") trong giai đoạn dev: Route A phụ thuộc tên class nội bộ, nên bản mới có thể làm hỏng. Hoãn OTA firmware đồng hồ cho tới khi xong spike, vì firmware mới có thể chặn sideload (thấp–vừa, suy luận từ báo cáo Band 10 Pro global không trả lời dịch vụ third-party app; xem `docs/research/02-phone-watch-transport.md` 2.2).
-- **Rủi ro công cụ cộng đồng**: Notify/AstroBox/Gadgetbridge không liên kết với Xiaomi. Đăng nhập tài khoản Xiaomi vào app bên thứ ba nghĩa là giao token cho họ. Sideload có thể trái ToS Xiaomi. Về lý thuyết Xiaomi có thể khóa tính năng hoặc tài khoản (chưa thấy báo cáo, thấp). Tài nguyên không đúng model có thể brick (cảnh báo của maintainer Gadgetbridge).
-- **Chỉ cài rpk do chính mình build** (từ `spikes/` hoặc `watch-app/out/`), không cài rpk lạ.
-- Route A chạy `app_process` với quyền shell: chỉ dùng code đã đọc. Không cần và không được bật root.
-- Mọi thao tác ở đây do chủ đồng hồ tự làm. Claude chưa kết nối thiết bị và chưa cài gì.
+- **Do not factory-reset the watch and do not "Unpair" in Mi Fitness** to experiment. A reset changes the Bluetooth MAC and invalidates the key (Gadgetbridge docs, high), erases data, and can force a full re-pair.
+- **Record the firmware and Mi Fitness versions first** (section 1.1). Temporarily **turn off auto-update** for Mi Fitness (Play Store -> Mi Fitness -> three-dot menu -> untick "Enable auto update") during development: Route A depends on internal class names, so a new version can break it. Postpone watch OTA firmware updates until you are done, because newer firmware may block sideloading (low-medium; inferred from reports that a global Band 10 Pro did not answer third-party app requests).
+- **Community tool risk**: Notify, AstroBox and Gadgetbridge are not affiliated with Xiaomi. Signing in to your Xiaomi account in a third-party app hands them a token. Sideloading may violate Xiaomi's terms of service, and in theory Xiaomi could lock features or the account (no reports seen, low). Resources for the wrong model can brick the watch (Gadgetbridge maintainer warning).
+- **Only install an rpk you built yourself** (from `spikes/` or `watch-app/out/`), never an unknown rpk.
+- Route A runs `app_process` with shell privileges: only run code you have read. Root is neither needed nor appropriate.
+- Everything here is done by the watch owner. This guide has not been automated or run on your device by anyone else.
 
 ---
 
-## Kết luận ngắn
-- Route khuyến nghị: **A, Mi Fitness gốc + `ThirdAppDebugFragment` mở bằng adb**. Không cần AuthKey, không đụng pairing, Mac đã đủ công cụ. Có một báo cáo cài thành công trên S5 (vừa).
-- Dự phòng: **B, Notify for Xiaomi** (S5 "Full" theo hãng, nhưng phải gỡ/vô hiệu Mi Fitness), rồi **C, AstroBox**.
+## Summary
 
-## Rủi ro chặn
-- Tên class obfuscate (`FragmentParams$b`, method `e`/`b`) có thể khác ở bản Mi Fitness của bạn, làm Route A hỏng.
-- Đồng hồ đang ghép với iPhone hoặc máy khác không có adb: phải đổi máy ghép, có nguy cơ mất dữ liệu.
-- Firmware S5 global có thể từ chối cài rpk bên thứ ba (chưa thấy bằng chứng, thấp).
+- Recommended route: **B, Notify for Xiaomi** (the S5 is "Full" per the vendor, it was verified on real hardware, but Mi Fitness must be uninstalled or disabled). Fallback: **C, AstroBox**.
+- **A (original Mi Fitness + `ThirdAppDebugFragment` via adb)** is the cleanest on paper (no AuthKey, no pairing change) but does not work on Mi Fitness global 3.60.0i.
 
-## Câu hỏi còn mở
-- Đồng hồ đang ghép với điện thoại nào (Android có Mi Fitness? iPhone?).
-- Version Mi Fitness và firmware S5 hiện tại.
-- "Third party app" của Notify có cần Pro không.
-- `designWidth` đúng cho S5 là 480 hay 240 (sẽ rõ ở Checklist mục 7).
+## Blocking risks
+- Obfuscated Mi Fitness class names (`FragmentParams$b`, method `e`/`b`) may differ on your Mi Fitness version, or the debug page may be removed, which breaks Route A.
+- A watch paired with an iPhone, or with a device without adb, requires changing the paired phone, with a risk of data loss.
+- S5 global firmware may refuse third-party rpk installs (no evidence seen, low).
+
+## Open questions
+- Whether Notify's "Third party app" needs Pro.
+- The correct `designWidth` for the S5 (480 or 240).

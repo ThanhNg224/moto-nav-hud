@@ -1,35 +1,36 @@
 # S0 - Hello RPK (Xiaomi Watch S5, 480x480)
 
-Mục tiêu: dựng được `.rpk` hello-world bằng CLI để S1 sideload lên đồng hồ thật.
+Historical technical experiment (spike S0), kept for reference. Goal: show that a hello-world `.rpk` can be built from the command line so it can be sideloaded onto a real watch in S1. It is not the shipping app; see `watch-app/` for that.
 
-## Phiên bản
+## What it verified
+- Both the debug and release builds exit 0, and the rpk contains the manifest, `app.js`, `pages/index/index.js`, `arrow.png` and `META-INF/CERT`.
+
+## Not verified by this spike
+- Rendering on a watch or simulator (text, Vietnamese diacritics, image rotation, keep-screen-on) was left to S1.
+- No simulator was run (it needs the AIoT-IDE GUI and the Vela image) and no watch was connected.
+- Whether the `package` conflicts with a "native app" was not confirmed.
+
+## Versions
 - Node v22.23.3, npm 10.9.9 (macOS)
-- `aiot-toolkit` 2.0.5, `@aiot-toolkit/jsc` ^1.0.3 (devDependencies cục bộ, không cài global)
+- `aiot-toolkit` 2.0.5, `@aiot-toolkit/jsc` ^1.0.3 (local devDependencies, not installed globally)
 
-## Rebuild
+## Build
 ```
 cd spikes/s0-hello-rpk
 npm install
-npx aiot build      # debug  -> dist/com.example.motonavhud.debug.0.0.1.rpk   (~9 KB)
+npx aiot build      # debug   -> dist/com.example.motonavhud.debug.0.0.1.rpk   (~9 KB)
 npx aiot release    # release -> dist/com.example.motonavhud.release.0.0.1.rpk (~8 KB)
 ```
-Mỗi lệnh build xóa `dist/` trước, nên bản đã build sẵn được copy vào `out/` (gitignored).
+Each build command clears `dist/` first, so copy the built file to `out/` (gitignored) if you want to keep it.
 
-## Cấu trúc
-- `src/manifest.json`: package `com.example.motonavhud` (placeholder, sẽ đổi khớp app id Android), designWidth 480, features: router, brightness, vibrator, interconnect (khai báo, chưa dùng).
-- `src/pages/index/index.ux`: nền đen, "Hello S5", dòng tiếng Việt, `arrow.png` xoay 45 độ, `setKeepScreenOn(true)` trong `onShow`.
-- `src/common/arrow.png`: mũi tên trắng 128x128 RGBA (sinh bằng Python thuần vì máy không có Pillow).
-- `sign/debug`, `sign/release`: khóa RSA 2048 tự ký (openssl, 10 năm). Đã gitignore `sign/**/*.pem`. Debug build vẫn dùng sign/debug.
+Signing keys are not included: create your own self-signed RSA 2048 key and certificate in `sign/debug` and `sign/release` (openssl); `sign/**/*.pem` is gitignored.
 
-## Đã kiểm chứng
-- Cả debug và release build exit 0; rpk chứa manifest, app.js, pages/index/index.js, arrow.png, META-INF/CERT.
+## Layout
+- `src/manifest.json`: package `com.example.motonavhud` (placeholder), designWidth 480, features: router, brightness, vibrator, interconnect (declared, unused).
+- `src/pages/index/index.ux`: black background, "Hello S5", a Vietnamese test line, `arrow.png` rotated 45 degrees, `setKeepScreenOn(true)` in `onShow`.
+- `src/common/arrow.png`: white arrow, 128x128 RGBA (generated with plain Python, no Pillow needed).
 
-## Chưa kiểm chứng
-- Hiển thị trên đồng hồ/simulator (chữ, dấu tiếng Việt, xoay ảnh, giữ màn hình sáng): chờ S1.
-- Không chạy simulator (cần AIoT-IDE GUI, tải Vela image). Không kết nối đồng hồ.
-- Chưa xác nhận `package` có xung đột với "native app" (xem tài liệu 01 mục 2.1).
-
-## Lưu ý
-- CLI in cảnh báo "please use AIoT-IDE" nhưng build vẫn thành công.
-- aiot-toolkit tạo thư mục tạm `spikes/.temp_s0-hello-rpk` khi build rồi tự xóa (kiểm tra sau build: không còn).
-- `npm install` báo vài cảnh báo audit (devDependency, bỏ qua).
+## Notes
+- The CLI prints a "please use AIoT-IDE" warning, but the build still succeeds.
+- `aiot-toolkit` creates a temporary folder `spikes/.temp_s0-hello-rpk` during the build and removes it afterwards.
+- `npm install` prints some audit warnings (devDependencies only, ignored).

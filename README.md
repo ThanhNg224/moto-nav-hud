@@ -1,21 +1,92 @@
-# moto-nav-hud
+# MotoNav – Moto Nav HUD
 
-HUD chỉ đường xe máy trên Xiaomi Watch S5 (Vela QuickApp `.rpk`), lấy dữ liệu từ Google Maps trên điện thoại Android qua BLE.
+Turn-by-turn navigation on your wrist for motorcycle riders. MotoNav reads the navigation notification from **Google Maps** on your Android phone and shows a clear, glanceable heads-up display on a **Xiaomi Watch S5** (Vela QuickApp), sent over Bluetooth LE.
 
-| Thư mục | Mục đích |
+| Component | Latest version | What it is |
+| --- | --- | --- |
+| [`phone-app/`](phone-app/README.md) | **0.5.0** (code 7) | Android app: reads Google Maps notifications and broadcasts them over BLE |
+| [`watch-app/`](watch-app/README.md) | **0.4.5** (code 11) | Xiaomi Watch S5 mini-app (`.rpk`): the HUD itself |
+| [`docs/protocol.md`](docs/protocol.md) | **v1.5** | Phone → watch data contract (single source of truth) |
+
+## How it works
+
+```
+Google Maps ──notification──▶ Phone app ──BLE GATT notify (1 Hz)──▶ Watch HUD
+```
+
+1. You start navigation in Google Maps.
+2. The phone app parses the ongoing navigation notification (maneuver, distance, street, ETA).
+3. It sends a small JSON message to the watch once per second over Bluetooth LE.
+4. The watch shows the arrow, distance, street name and progress ring, and vibrates before each turn.
+
+No account, no cloud, no internet connection needed by MotoNav itself. Everything stays between your phone and your watch.
+
+## Features
+
+**Watch HUD (480×480 round AMOLED)**
+- 13 maneuver arrows (straight, slight/normal/sharp turns, keep left/right, U-turn, roundabout with exit badge, depart, arrive).
+- 270° progress ring that changes color as you approach a turn (`> 200 m` teal → `≤ 200 m` amber → `≤ 50 m` red-orange).
+- Haptic alerts per turn: two short pulses at ≤ 200 m, three long pulses at ≤ 50 m. Vibration level and screen brightness (Auto / Day / Night) are adjustable on the watch.
+- Clear states: waiting for navigation, rerouting, arrived, "old Ns" when Maps goes quiet (for example at a long red light), and data lost.
+- Built-in **Demo** mode to try it without riding.
+
+**Phone app**
+- Starts automatically when Google Maps begins navigating, and stops itself after an idle timeout (Off / 5 / 10 / 15 min).
+- Quick places (Home, Work, and one more) that open Google Maps directly, with launcher shortcuts and a Quick Settings tile.
+- Live preview of the watch face on the phone, one-tap permission prompts, and an event log for troubleshooting.
+- Supports Google Maps Live Updates notifications.
+
+## Requirements
+
+- **Watch:** Xiaomi Watch S5 (tested on the 46 mm model, firmware 3.222.007).
+- **Phone:** Android 10 or newer (minSdk 29) with Bluetooth LE and Google Maps. Tested on an OPPO phone running Android 17.
+- A way to install an `.rpk` on the watch (see the [sideloading guide](docs/guides/S1-cai-rpk-len-s5.md)). MotoNav runs alongside Mi Fitness.
+
+> Both apps follow the system language: English if your phone/watch is set to English, Vietnamese otherwise. Vietnamese on-screen strings quoted in the docs come with an English gloss.
+
+## Quick start
+
+1. **Phone app** – build and install it (see [`phone-app/README.md`](phone-app/README.md)):
+   ```bash
+   cd phone-app
+   ./gradlew assembleDebug
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   ```
+   Then grant *Notification access*, Bluetooth and notification permissions when asked.
+2. **Watch app** – build the `.rpk` and install it on the watch (see [`watch-app/README.md`](watch-app/README.md) and the [sideloading guide](docs/guides/S1-cai-rpk-len-s5.md)):
+   ```bash
+   cd watch-app
+   npm install
+   npx aiot release
+   ```
+3. Open the phone app, tap **Demo** to confirm the watch connects, then start navigation in Google Maps.
+
+## Repository layout
+
+| Path | Purpose |
 | --- | --- |
-| `docs/protocol.md` | Hợp đồng dữ liệu phone -> watch (v1.2), nguồn sự thật duy nhất |
-| `docs/research/` | Báo cáo nghiên cứu và review của Codex (bắt đầu từ `00-brief.md`) |
-| `docs/guides/` | Hướng dẫn thao tác tay (S1: cài `.rpk` lên S5) |
-| `docs/plans/` | Kế hoạch triển khai (không commit, xoá khi xong) |
-| `spikes/` | Thử nghiệm ngắn kiểm chứng rủi ro kỹ thuật |
-| [`watch-app/`](watch-app/README.md) | Mini-app `.rpk` trên đồng hồ: build, test, sideload |
-| [`phone-app/`](phone-app/README.md) | App Android: đọc thông báo Google Maps, phát BLE GATT, chế độ Demo |
+| [`phone-app/`](phone-app/README.md) | Android app (Kotlin, Gradle Kotlin DSL) |
+| [`watch-app/`](watch-app/README.md) | Watch mini-app (JavaScript / Vela UX, built with `aiot-toolkit`) |
+| [`docs/protocol.md`](docs/protocol.md) | Wire protocol between phone and watch |
+| [`docs/guides/`](docs/guides/S1-cai-rpk-len-s5.md) | Step-by-step guide: install the `.rpk` on the watch |
+| [`spikes/`](spikes) | Small early experiments that de-risked the technology |
 
-## Trạng thái (v0.3.0)
+## Status
 
-- **Thương hiệu & biểu tượng đồng bộ (`MotoNav`)**: bộ icon đồng nhất cho cả Android Adaptive Icon và Xiaomi Watch S5 (vòng cung tiến độ 270° ngọc lam + mũi tên trắng trên nền tối), câu chữ tiếng Việt thân thiện trên cả 2 thiết bị.
-- **Watch app (v0.3.0, 53 test pass)**: giao diện mặt tròn 480×480 AMOLED lấy cảm hứng Beeline Moto / Wear OS — vòng cung tiến độ 270° đổi màu theo ngưỡng khẩn cấp (`>200 m` xanh ngọc → `≤200 m` vàng → `≤50 m` đỏ cam), 14 mũi tên `108×108 px` 1:1 đồng tâm trong vòng tròn nổi bật, huy hiệu lối ra vòng xuyến (`LỐI X`) tách gọn không đè layout, màn chờ có biểu tượng MotoNav + nút `Chạy thử` (1 Hz đếm ngược mượt) & `Cài đặt`, cài đặt nhanh lưu bền trên đồng hồ: 4 mức rung (`Phố / Chuẩn / Xa / Tắt rung`) và 3 chế độ độ sáng (`Tự động` giữ nguyên cảm biến hệ thống / `Ban ngày` / `Ban đêm`).
-- **Phone app (v0.3.0, 51 test method pass, 0 lỗi lint)**: **Tự bật khi mở Google Maps** (`AutoStartGate` chống lặp khởi động/chống bật ngược khi người dùng chủ động dừng giữa chuyến), **Tự dừng khi chờ** (`Tắt / 5p / 10p / 15p`), giao diện thẻ tối với mặt đồng hồ thu nhỏ trực tiếp (`ArrowPreviewView`), thẻ nhắc cấp quyền 1 chạm, **Quick Settings Tile** (`MotoNav`), nút **Dừng** trên thông báo, hỗ trợ Google Maps 26.47 Live Updates (`ProgressStyle`, NBSP) và xác nhận notification còn sống mỗi 3 s.
-- Đã kiểm chứng trên phần cứng thật (**OPPO CPH2873 Android 17 + Xiaomi Watch S5 46mm fw 3.222.007**), chạy song song ổn định với **Mi Fitness**.
-- Còn lại: thử nghiệm chuyến đi xe máy thực tế dài hơi (15–30 phút) để đo pin, kiểm wrist-down dài và thu thêm mẫu Google Maps tiếng Việt (`vi-VN`).
+- Verified on real hardware: BLE link (1,000+ frames stable), Vietnamese text with diacritics, all arrows, vibration patterns, running next to Mi Fitness, Google Maps 26.47 Live Updates notifications.
+- Not yet verified: long real-world rides (15–30+ minutes) for battery and long wrist-down behavior, and Vietnamese-language (`vi-VN`) Google Maps notification samples.
+- Not implemented: the Mi Fitness interconnect channel (the BLE channel is the one in use).
+
+## Privacy and security
+
+- MotoNav only reads the navigation notification of Google Maps (`com.google.android.apps.maps`) and does not log notification text.
+- The phone and watch share a default pairing code (`MOTONAV1`). It is not a secret; it only prevents accidental cross-talk between two nearby setups. You can change it (see the app READMEs).
+- Signing keys (`*.pem`, `*.jks`) and `local.properties` are git-ignored. Generate your own keys when building the watch app.
+
+## Contributing
+
+Issues and pull requests are welcome. Read [`docs/protocol.md`](docs/protocol.md) first: protocol changes must be made there before touching either app.
+
+## License
+
+[MIT](LICENSE). MotoNav is an independent project and is not affiliated with Xiaomi or Google.
