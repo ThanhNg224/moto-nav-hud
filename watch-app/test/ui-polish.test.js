@@ -355,6 +355,23 @@ test('giờ nhỏ góc trên: gắn trong index.ux, không đè dial/huy hiệu 
   assert.ok(b <= 106)   // không đè huy hiệu LỐI (top 106)
 })
 
+test('dial + mũi tên đồng tâm (240,98) và không dùng border (tránh lệch 3px do mô hình hộp)', () => {
+  const ux = fs.readFileSync(__dirname + '/../src/pages/index/index.ux', 'utf8')
+  const box = (cls) => {
+    const css = ux.match(new RegExp('\\.' + cls + '\\s*\\{([^}]*)\\}'))[1]
+    const px = (k) => Number(css.match(new RegExp('(?:^|[\\s;])' + k + ':\\s*(\\d+)px'))[1])
+    return { cx: px('left') + px('width') / 2, cy: px('top') + px('height') / 2, css }
+  }
+  for (const c of ['dial', 'dial-in', 'arrow']) {
+    const b = box(c)
+    assert.strictEqual(b.cx, 240, c + ' lệch ngang')
+    assert.strictEqual(b.cy, 98, c + ' lệch dọc')
+  }
+  assert.ok(!/border\s*:/.test(box('dial').css) && !/border\s*:/.test(box('dial-in').css))
+  assert.ok(ux.includes('{{dialInClass}}'))
+  assert.ok(ux.includes("this.setField('dialInClass'"))
+})
+
 test('dấu tin cũ: khóa quiet.mark (vi/en) và gắn trong index.ux', () => {
   assert.strictEqual(i18n.TABLES.vi['quiet.mark'], 'cũ {n}s')
   assert.strictEqual(i18n.TABLES.en['quiet.mark'], 'old {n}s')

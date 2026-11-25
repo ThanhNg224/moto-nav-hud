@@ -5,6 +5,7 @@
 
     <!-- Chế độ dẫn đường: vòng tròn nền & mũi tên 108x108 đồng tâm tuyệt đối tại (240, 98) -->
     <div class="dial {{dialClass}}" if="{{arrow}}"></div>
+    <div class="dial-in {{dialInClass}}" if="{{arrow}}"></div>
     <image class="arrow" src="{{arrow}}" if="{{arrow}}"></image>
 
     <!-- Huy hiệu lối ra vòng xuyến: nằm tách biệt bên phải dial, không đè dial hay viền tròn -->
@@ -105,6 +106,8 @@
 .ring-stale { color: #ef4444; }
 
 /* Khung tròn chứa mũi tên: tâm (240, 98), mép trên y = 32 (r = 208px < 223px) */
+/* Viền 3px KHÔNG dùng `border` (không rõ width có gồm viền hay không -> tâm lệch 3px): vòng ngoài 132 màu viền,
+   vòng trong 126 màu nền, cùng tâm (240, 98) bất kể mô hình hộp. */
 .dial {
   position: absolute;
   left: 174px;
@@ -112,17 +115,21 @@
   width: 132px;
   height: 132px;
   border-radius: 66px;
+  background-color: #223044;
+}
+.dial-far { background-color: #ffd000; }
+.dial-near { background-color: #ff5a36; }
+.dial-in {
+  position: absolute;
+  left: 177px;
+  top: 35px;
+  width: 126px;
+  height: 126px;
+  border-radius: 63px;
   background-color: #101620;
-  border: 3px solid #223044;
 }
-.dial-far {
-  background-color: #241d00;
-  border: 3px solid #ffd000;
-}
-.dial-near {
-  background-color: #2c100a;
-  border: 3px solid #ff5a36;
-}
+.dial-in-far { background-color: #241d00; }
+.dial-in-near { background-color: #2c100a; }
 /* Ảnh PNG 108x108 hiển thị đúng tỷ lệ 1:1, đồng tâm tuyệt đối với .dial tại (240, 98) */
 .arrow {
   position: absolute;
@@ -493,6 +500,7 @@ export default {
     arcPercent: 0,
     ringClass: 'ring-idle',
     dialClass: '',
+    dialInClass: '',
     arrow: '',
     exitBadge: '',
     distance: '',
@@ -778,6 +786,7 @@ export default {
     this.setField('arcPercent', v.arcPercent)
     this.setField('ringClass', ringCls)
     this.setField('dialClass', v.urgency === 'near' ? 'dial-near' : (v.urgency === 'far' ? 'dial-far' : ''))
+    this.setField('dialInClass', v.urgency === 'near' ? 'dial-in-near' : (v.urgency === 'far' ? 'dial-in-far' : ''))
     this.setField('arrow', v.arrow || '')
     this.setField('exitBadge', v.exitBadge || '')
     this.setField('distance', v.distance)
