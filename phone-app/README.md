@@ -2,7 +2,7 @@
 
 Đọc notification dẫn đường của Google Maps, đổi thành `NavState` và đẩy sang HUD trên Xiaomi Watch S5 qua BLE GATT (phone = peripheral). Hợp đồng dữ liệu: `../docs/protocol.md` (v1.4) là nguồn sự thật duy nhất.
 
-Phiên bản: phone **0.5.0** (`versionCode` 7); watch 0.4.2 (`versionCode` 8).
+Phiên bản: phone **0.5.0** (`versionCode` 7); watch 0.4.3 (`versionCode` 9).
 
 ## Tính năng chính (0.5.0)
 

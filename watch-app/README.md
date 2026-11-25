@@ -20,7 +20,7 @@ python3 tools/gen_arrows.py            # chỉ khi sửa mũi tên
 npx aiot build   && cp dist/*.rpk out/ # debug
 npx aiot release && cp dist/*.rpk out/ # release (mỗi lệnh xóa dist/)
 ```
-Kết quả: `out/dev.motonavhud.app.{debug,release}.0.4.2.rpk` (~30 KB / ~27 KB).
+Kết quả: `out/dev.motonavhud.app.{debug,release}.0.4.3.rpk` (~30 KB / ~27 KB).
 
 ## Chế độ DEMO
 Ở màn "Chờ dữ liệu" chạm màn hình: chạy vòng qua các maneuver mỗi 2 s với khoảng cách giả (qua cùng đường parse/accept/rung như tin thật). Chạm lần nữa để dừng. Tin thật đến sẽ tự tắt demo.

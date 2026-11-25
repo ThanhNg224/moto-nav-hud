@@ -42,9 +42,17 @@ Quét -> nối -> subscribe -> nhận frame, Demo (mũi tên, khoảng cách, t�
   - Tối ưu hiệu năng & chống spam log: tắt `tickTimer` 1 Hz khi không debug trên watch, chỉ ghi thuộc tính reactive khi giá trị đổi, gộp count log 10 s; phía phone bỏ log `notify sent` mỗi gói, heartbeat chỉ log 30 s/lần, bỏ serialize JSON preview khi `MainActivity` đóng; thêm nút `Dừng HUD` ngay trên thanh thông báo.
   - Giữ nguyên Notify for Xiaomi để tiện cài/update `.rpk` các bản sau.
 
+## Watch 0.4.3 (2026-11-25)
+
+Phiên bản: watch `versionName` 0.4.3 (`versionCode` 9). Phone vẫn 0.5.0. BLE/payload không đổi (`v`=1, hợp đồng `docs/protocol.md` v1.4).
+
+- **Đồng hồ nhỏ (`clock-top`)**: HH:mm ở góc trên bên phải mặt HUD, nằm trong cung 223 px, định dạng 24 giờ, dùng lại `clockStr()`.
+- **Phone**: preview không có đồng hồ (có chủ đích).
+- **Chưa kiểm chứng trên máy**: vị trí và hiển thị đồng hồ trên Watch S5 thật.
+
 ## Phone 0.5.0 – UI refresh (2026-11-25)
 
-Phiên bản: phone `versionName` 0.5.0 (`versionCode` 7, giữ nguyên); watch vẫn 0.4.2 (`versionCode` 8, không đổi). BLE/payload không đổi (`v`=1, hợp đồng `docs/protocol.md` v1.4).
+Phiên bản: phone `versionName` 0.5.0 (`versionCode` 7, giữ nguyên); watch 0.4.3 (`versionCode` 9). BLE/payload không đổi (`v`=1, hợp đồng `docs/protocol.md` v1.4).
 
 - **Màn hình chính mới**: hero đồng hồ (xem trước mũi tên), mục "Quick Go" (dẫn nhanh tới địa điểm đã lưu), mục "Trạng thái", dock điều hướng dưới cùng.
 - **Mở Google Maps**: bấm địa điểm gửi `google.navigation:` với chế độ mặc định xe máy (`mode=l`); đổi sang Ô tô/Xe đạp/Đi bộ trong Cài đặt.

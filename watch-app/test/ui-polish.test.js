@@ -339,6 +339,22 @@ test('palette: không còn màu gần trùng #ff4d2d / #ff6b6b trong index.ux', 
   assert.ok(!ux.includes('#ff6b6b'))
 })
 
+test('giờ nhỏ góc trên: gắn trong index.ux, không đè dial/huy hiệu LỐI và nằm trong vòng cung', () => {
+  const ux = fs.readFileSync(__dirname + '/../src/pages/index/index.ux', 'utf8')
+  assert.ok(ux.includes('{{clockNow}}'))
+  assert.ok(ux.includes("this.setField('clockNow', clockStr())"))
+  const css = ux.match(/\.clock-top\s*\{([^}]*)\}/)[1]
+  const px = (k) => Number(css.match(new RegExp(k + ':\\s*(\\d+)px'))[1])
+  const [l, t, w, hgt] = [px('left'), px('top'), px('width'), px('height')]
+  const r = l + w, b = t + hgt
+  // mọi góc nằm trong mép trong vòng cung (r = 223px quanh tâm 240,240)
+  for (const [x, y] of [[l, t], [r, t], [l, b], [r, b]]) {
+    assert.ok(Math.hypot(x - 240, y - 240) < 223, `góc (${x},${y}) chạm vòng cung`)
+  }
+  assert.ok(l >= 306)   // không đè mép phải của dial (174..306)
+  assert.ok(b <= 106)   // không đè huy hiệu LỐI (top 106)
+})
+
 test('dấu tin cũ: khóa quiet.mark (vi/en) và gắn trong index.ux', () => {
   assert.strictEqual(i18n.TABLES.vi['quiet.mark'], 'cũ {n}s')
   assert.strictEqual(i18n.TABLES.en['quiet.mark'], 'old {n}s')
