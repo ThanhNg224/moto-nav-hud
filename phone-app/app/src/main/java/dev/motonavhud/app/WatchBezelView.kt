@@ -12,10 +12,6 @@ import android.graphics.Typeface
 import android.text.TextPaint
 import android.text.TextUtils
 import android.view.ViewGroup
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -53,20 +49,6 @@ class WatchBezelView(ctx: Context, private val dark: Boolean) : ViewGroup(ctx) {
         textAlign = Paint.Align.CENTER
     }
 
-    /** Giờ nhỏ ở phần trên mặt đồng hồ (giữa đỉnh vòng và mũi tên), như mặt đồng hồ thật. */
-    private val clockFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
-    private val clockPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Palette.Device.TEXT_DIM
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        textAlign = Paint.Align.CENTER
-    }
-    private val clockTick = object : Runnable {
-        override fun run() {
-            invalidate()
-            postDelayed(this, 60_000L - System.currentTimeMillis() % 60_000L)
-        }
-    }
-
     private val topStrap = Path()
     private val bottomStrap = Path()
     private val strapRect = RectF()
@@ -83,17 +65,6 @@ class WatchBezelView(ctx: Context, private val dark: Boolean) : ViewGroup(ctx) {
         setWillNotDraw(false)
         arrow.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         addView(arrow)
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        removeCallbacks(clockTick)
-        post(clockTick)
-    }
-
-    override fun onDetachedFromWindow() {
-        removeCallbacks(clockTick)
-        super.onDetachedFromWindow()
     }
 
     /** [distanceText] và [subText] (tên đường) vẽ dưới mũi tên; cả hai null = đang chờ Maps. */
@@ -186,9 +157,6 @@ class WatchBezelView(ctx: Context, private val dark: Boolean) : ViewGroup(ctx) {
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
         val sd = screenDia
-        clockPaint.textSize = sd * 0.065f
-        clockFmt.timeZone = TimeZone.getDefault()
-        canvas.drawText(clockFmt.format(Date()), cx, cy - sd * 0.285f, clockPaint)
         val dist = distanceText
         val sub = subText
         if (dist == null && sub == null) {

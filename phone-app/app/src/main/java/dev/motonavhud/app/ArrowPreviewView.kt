@@ -76,82 +76,80 @@ class ArrowPreviewView(ctx: Context) : View(ctx) {
         }
 
         // Vẽ biểu tượng maneuver bên trong mặt tròn
-        // glyph thu nhỏ và hạ xuống để chừa chỗ cho giờ nhỏ ở phần trên mặt đồng hồ
-        val s = size * 0.28f
-        val gy = cy + size * 0.04f
-        strokePaint.strokeWidth = size * 0.08f
+        val s = size * 0.34f
+        strokePaint.strokeWidth = size * 0.095f
         strokePaint.color = if (stateK == NavState.K_IDLE) Color.parseColor("#475569") else Color.WHITE
         fillPaint.color = strokePaint.color
 
         when {
             stateK == NavState.K_IDLE || stateK == NavState.K_REROUTING -> {
-                canvas.drawCircle(cx, gy, s * 0.45f, strokePaint)
+                canvas.drawCircle(cx, cy, s * 0.45f, strokePaint)
             }
             stateK == NavState.K_ARRIVED || maneuver == NavState.M_ARRIVE -> {
-                canvas.drawLine(cx - s * 0.4f, gy - s * 0.65f, cx - s * 0.4f, gy + s * 0.7f, strokePaint)
+                canvas.drawLine(cx - s * 0.4f, cy - s * 0.65f, cx - s * 0.4f, cy + s * 0.7f, strokePaint)
                 path.reset()
-                path.moveTo(cx - s * 0.35f, gy - s * 0.65f)
-                path.lineTo(cx + s * 0.55f, gy - s * 0.65f)
-                path.lineTo(cx + s * 0.3f, gy - s * 0.25f)
-                path.lineTo(cx + s * 0.55f, gy + s * 0.15f)
-                path.lineTo(cx - s * 0.35f, gy + s * 0.15f)
+                path.moveTo(cx - s * 0.35f, cy - s * 0.65f)
+                path.lineTo(cx + s * 0.55f, cy - s * 0.65f)
+                path.lineTo(cx + s * 0.3f, cy - s * 0.25f)
+                path.lineTo(cx + s * 0.55f, cy + s * 0.15f)
+                path.lineTo(cx - s * 0.35f, cy + s * 0.15f)
                 path.close()
                 canvas.drawPath(path, fillPaint)
             }
             maneuver == NavState.M_ROUNDABOUT -> {
-                canvas.drawCircle(cx, gy + s * 0.2f, s * 0.35f, strokePaint)
-                drawArrow(canvas, cx, gy - s * 0.15f, cx, gy - s * 0.7f, s * 0.36f)
+                canvas.drawCircle(cx, cy + s * 0.2f, s * 0.35f, strokePaint)
+                drawArrow(canvas, cx, cy - s * 0.15f, cx, cy - s * 0.7f, s * 0.36f)
             }
             maneuver == NavState.M_UTURN -> {
                 path.reset()
-                path.moveTo(cx + s * 0.35f, gy + s * 0.65f)
-                path.lineTo(cx + s * 0.35f, gy - s * 0.25f)
-                path.quadTo(cx + s * 0.35f, gy - s * 0.7f, cx, gy - s * 0.7f)
-                path.quadTo(cx - s * 0.35f, gy - s * 0.7f, cx - s * 0.35f, gy - s * 0.25f)
-                path.lineTo(cx - s * 0.35f, gy + s * 0.2f)
+                path.moveTo(cx + s * 0.35f, cy + s * 0.65f)
+                path.lineTo(cx + s * 0.35f, cy - s * 0.25f)
+                path.quadTo(cx + s * 0.35f, cy - s * 0.7f, cx, cy - s * 0.7f)
+                path.quadTo(cx - s * 0.35f, cy - s * 0.7f, cx - s * 0.35f, cy - s * 0.25f)
+                path.lineTo(cx - s * 0.35f, cy + s * 0.2f)
                 canvas.drawPath(path, strokePaint)
-                drawHead(canvas, cx - s * 0.35f, gy + s * 0.2f, Math.PI / 2.0, s * 0.36f)
+                drawHead(canvas, cx - s * 0.35f, cy + s * 0.2f, Math.PI / 2.0, s * 0.36f)
             }
             maneuver in listOf(NavState.M_LEFT, NavState.M_RIGHT) -> {
                 val dir = if (maneuver == NavState.M_LEFT) -1f else 1f
                 path.reset()
-                path.moveTo(cx - dir * s * 0.3f, gy + s * 0.65f)
-                path.lineTo(cx - dir * s * 0.3f, gy - s * 0.15f)
-                path.lineTo(cx + dir * s * 0.4f, gy - s * 0.15f)
+                path.moveTo(cx - dir * s * 0.3f, cy + s * 0.65f)
+                path.lineTo(cx - dir * s * 0.3f, cy - s * 0.15f)
+                path.lineTo(cx + dir * s * 0.4f, cy - s * 0.15f)
                 canvas.drawPath(path, strokePaint)
-                drawHead(canvas, cx + dir * s * 0.4f, gy - s * 0.15f, if (dir < 0) Math.PI else 0.0, s * 0.36f)
+                drawHead(canvas, cx + dir * s * 0.4f, cy - s * 0.15f, if (dir < 0) Math.PI else 0.0, s * 0.36f)
             }
             maneuver in listOf(NavState.M_SLIGHT_LEFT, NavState.M_SLIGHT_RIGHT, NavState.M_KEEP_LEFT, NavState.M_KEEP_RIGHT) -> {
                 val dir = if (maneuver == NavState.M_SLIGHT_LEFT || maneuver == NavState.M_KEEP_LEFT) -1f else 1f
                 path.reset()
-                path.moveTo(cx - dir * s * 0.15f, gy + s * 0.65f)
-                path.lineTo(cx - dir * s * 0.15f, gy + s * 0.1f)
-                path.lineTo(cx + dir * s * 0.42f, gy - s * 0.48f)
+                path.moveTo(cx - dir * s * 0.15f, cy + s * 0.65f)
+                path.lineTo(cx - dir * s * 0.15f, cy + s * 0.1f)
+                path.lineTo(cx + dir * s * 0.42f, cy - s * 0.48f)
                 canvas.drawPath(path, strokePaint)
                 val ang = atan2((-s * 0.58f).toDouble(), (dir * s * 0.57f).toDouble())
-                drawHead(canvas, cx + dir * s * 0.42f, gy - s * 0.48f, ang, s * 0.36f)
+                drawHead(canvas, cx + dir * s * 0.42f, cy - s * 0.48f, ang, s * 0.36f)
             }
             maneuver in listOf(NavState.M_SHARP_LEFT, NavState.M_SHARP_RIGHT) -> {
                 val dir = if (maneuver == NavState.M_SHARP_LEFT) -1f else 1f
                 path.reset()
-                path.moveTo(cx - dir * s * 0.35f, gy + s * 0.65f)
-                path.lineTo(cx - dir * s * 0.35f, gy - s * 0.45f)
-                path.lineTo(cx + dir * s * 0.42f, gy + s * 0.32f)
+                path.moveTo(cx - dir * s * 0.35f, cy + s * 0.65f)
+                path.lineTo(cx - dir * s * 0.35f, cy - s * 0.45f)
+                path.lineTo(cx + dir * s * 0.42f, cy + s * 0.32f)
                 canvas.drawPath(path, strokePaint)
                 val ang = atan2((s * 0.77f).toDouble(), (dir * s * 0.77f).toDouble())
-                drawHead(canvas, cx + dir * s * 0.42f, gy + s * 0.32f, ang, s * 0.36f)
+                drawHead(canvas, cx + dir * s * 0.42f, cy + s * 0.32f, ang, s * 0.36f)
             }
             maneuver == NavState.M_DEPART -> {
-                canvas.drawCircle(cx, gy + s * 0.55f, s * 0.2f, fillPaint)
-                drawArrow(canvas, cx, gy + s * 0.22f, cx, gy - s * 0.6f, s * 0.38f)
+                canvas.drawCircle(cx, cy + s * 0.55f, s * 0.2f, fillPaint)
+                drawArrow(canvas, cx, cy + s * 0.22f, cx, cy - s * 0.6f, s * 0.38f)
             }
             maneuver == NavState.M_STRAIGHT -> {
-                drawArrow(canvas, cx, gy + s * 0.65f, cx, gy - s * 0.55f, s * 0.4f)
+                drawArrow(canvas, cx, cy + s * 0.65f, cx, cy - s * 0.55f, s * 0.4f)
             }
             else -> {
                 // M_UNKNOWN: không biết hướng, vẽ chấm mờ trung tính (không ngụ ý hướng đi).
                 fillPaint.color = Color.parseColor("#475569")
-                canvas.drawCircle(cx, gy, s * 0.22f, fillPaint)
+                canvas.drawCircle(cx, cy, s * 0.22f, fillPaint)
             }
         }
     }
