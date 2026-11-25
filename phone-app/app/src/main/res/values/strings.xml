@@ -15,7 +15,7 @@
     <!-- Thẻ hero -->
     <string name="ui_demo_prefix">"[Thử] "</string>
     <string name="ui_hero_ready">Sẵn sàng</string>
-    <string name="ui_hero_ready_title">MotoNav sẽ thử tự bật khi Google Maps bắt đầu dẫn đường</string>
+    <string name="ui_hero_ready_title">Tự bật khi Maps dẫn đường</string>
     <string name="ui_hero_ready_meta">Nếu Android chặn, bấm Bắt đầu hoặc chạm ô MotoNav trên thanh cài đặt nhanh</string>
     <string name="ui_hero_stopped">Đã dừng</string>
     <string name="ui_hero_disabled_title">Bấm Bắt đầu để kết nối với Watch S5</string>
@@ -33,7 +33,7 @@
     <string name="ui_hero_connecting_title">Đang chờ Android nối dịch vụ đọc thông báo</string>
     <string name="ui_hero_connecting_meta">Nếu kéo dài, tắt rồi bật lại quyền đọc thông báo hoặc bấm Bắt đầu</string>
     <string name="ui_hero_wait_maps">Chờ Maps</string>
-    <string name="ui_hero_wait_maps_title">Mở Google Maps chế độ xe máy</string>
+    <string name="ui_hero_wait_maps_title">Mở Google Maps để dẫn đường</string>
     <string name="ui_hero_idle_countdown">Tự dừng sau %1$dp %2$ds</string>
     <string name="ui_hero_idle_holding">Đang giữ kết nối với đồng hồ</string>
     <string name="ui_hero_rerouting">Tính lại</string>
@@ -75,8 +75,8 @@
     <string name="ui_warn_mtu">Lưu ý: Kết nối Bluetooth hiện không đủ dung lượng để gửi chỉ đường đầy đủ, đồng hồ có thể không nhận được. Hãy ngắt rồi kết nối lại đồng hồ.</string>
 
     <!-- Thẻ trạng thái -->
-    <string name="ui_card_watch">ĐỒNG HỒ S5</string>
-    <string name="ui_card_maps">GOOGLE MAPS</string>
+    <string name="ui_card_watch">Đồng hồ S5</string>
+    <string name="ui_card_maps">Google Maps</string>
     <string name="ui_watch_no_permission">Thiếu quyền</string>
     <string name="ui_watch_no_permission_sub">Cần quyền Bluetooth</string>
     <string name="ui_watch_delivery">Gửi tin lỗi</string>
@@ -178,4 +178,70 @@
     <string name="ui_demo_blocked">Không thể chạy thử khi Google Maps đang dẫn đường. Hãy kết thúc chuyến đi trong Maps trước.</string>
     <string name="ui_start">Bắt đầu</string>
     <string name="ui_stop">Dừng</string>
+
+    <!-- Giao diện v0.5: màn chính, thiết lập, cài đặt -->
+    <string name="ui_nav_next_turn">Lần rẽ tiếp theo</string>
+    <string name="ui_nav_into_after">vào %1$s sau %2$s</string>
+    <string name="ui_nav_after">sau %1$s</string>
+    <string name="ui_nav_receiving">Đang nhận</string>
+    <string name="ui_row_remaining">Còn lại</string>
+    <string name="ui_row_eta">Đến lúc</string>
+    <string name="ui_row_auto_stop">Tự dừng</string>
+    <string name="ui_section_status">Trạng thái</string>
+    <string name="ui_auto_stop_after">sau %1$d phút</string>
+    <string name="ui_quick_title">Đi nhanh</string>
+    <string name="ui_quick_hint">Mở Maps · %1$s</string>
+    <string name="ui_quick_home">Về nhà</string>
+    <string name="ui_quick_work">Cơ quan</string>
+    <string name="ui_quick_add">Thêm</string>
+    <string name="ui_mode_two_wheeler">Xe máy</string>
+    <string name="ui_mode_drive">Ô tô</string>
+    <string name="ui_mode_bicycle">Xe đạp</string>
+    <string name="ui_mode_walk">Đi bộ</string>
+    <string name="ui_maps_missing">Chưa cài Google Maps</string>
+    <string name="ui_start_maps">Mở Maps và bắt đầu</string>
+    <string name="ui_back_to_maps">Về Google Maps</string>
+    <string name="ui_setup_blocked_btn">Hoàn tất thiết lập để bắt đầu</string>
+    <string name="ui_setup_eyebrow">Thiết lập lần đầu · %1$d/4</string>
+    <plurals name="ui_setup_steps_left">
+        <item quantity="other">CÒN %1$d BƯỚC</item>
+    </plurals>
+    <string name="ui_setup_sentence">Cấp các quyền sau để MotoNav đọc chỉ dẫn từ Google Maps và gửi sang đồng hồ.</string>
+    <string name="ui_setup_note">MotoNav chỉ đọc thông báo chỉ đường của Google Maps. Trong Cài đặt, bật MotoNav ở mục “Quyền truy cập thông báo” (Notification access).</string>
+    <string name="ui_perm_bt_title">Bluetooth</string>
+    <string name="ui_perm_bt_sub">Bắt buộc · Gửi hướng rẽ tới đồng hồ</string>
+    <string name="ui_perm_notif_title">Thông báo</string>
+    <string name="ui_perm_notif_sub">Tùy chọn · Hiện thông báo khi chạy nền để dừng nhanh</string>
+    <string name="ui_perm_listener_title">Đọc thông báo Maps</string>
+    <string name="ui_perm_listener_sub">Bắt buộc · Đọc chỉ dẫn từ Google Maps</string>
+    <string name="ui_perm_battery_title">Không tối ưu pin</string>
+    <string name="ui_perm_battery_sub">Tùy chọn · Không bị tắt khi chạy nền</string>
+    <string name="ui_btn_grant">Cấp quyền</string>
+    <string name="ui_btn_open">Mở</string>
+    <string name="ui_btn_open_settings">Mở cài đặt</string>
+    <string name="ui_status_granted">Đã cấp</string>
+    <string name="ui_status_needed">Cần cấp</string>
+    <string name="ui_state_on">Đang bật</string>
+    <string name="ui_state_off">Đang tắt</string>
+    <string name="ui_back">Quay lại</string>
+    <string name="ui_set_group_auto">Tự động</string>
+    <string name="ui_set_auto_start">Tự bắt đầu</string>
+    <string name="ui_set_auto_stop">Tự dừng sau</string>
+    <string name="ui_seg_minutes">%1$d phút</string>
+    <string name="ui_set_group_maps">Google Maps</string>
+    <string name="ui_set_open_maps">Mở Maps khi bấm Bắt đầu</string>
+    <string name="ui_set_open_maps_sub">Một chạm là đi, HUD tự bật</string>
+    <string name="ui_set_travel_mode">Phương tiện dẫn đường</string>
+    <string name="ui_set_travel_mode_help">Áp dụng cho Điểm đến nhanh. Cần Google Maps hỗ trợ chế độ này ở nước bạn.</string>
+    <string name="ui_set_places">Điểm đến nhanh</string>
+    <string name="ui_places_none">Chưa lưu điểm nào</string>
+    <string name="ui_set_group_perms">Quyền truy cập</string>
+    <string name="ui_set_group_pair">Kết nối đồng hồ</string>
+    <string name="ui_pair_title">Mã ghép nối</string>
+    <string name="ui_pair_change">Đổi</string>
+    <string name="ui_set_group_adv">Nâng cao</string>
+    <string name="ui_adv_demo_title">Chạy thử HUD</string>
+    <string name="ui_adv_demo_sub">Xem HUD trên đồng hồ không cần chỉ đường</string>
+    <string name="ui_adv_diag_title">Chẩn đoán và nhật ký</string>
+    <string name="ui_adv_diag_sub">Gói tin gần nhất, trạng thái Bluetooth</string>
 </resources>

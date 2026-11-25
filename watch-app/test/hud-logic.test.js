@@ -95,14 +95,89 @@ test('k=2/3 xóa mũi tên ngay dù m còn giá trị', () => {
   assert.strictEqual(v.mode, 'arrived'); assert.strictEqual(v.arrow, null); assert.strictEqual(v.banner, 'Đã đến')
 })
 
-test('a > 10000 => mất dữ liệu, không rung', () => {
+test('k=1 a > 10000 => yên lặng (không mất dữ liệu, không rung); a > 65000 => mất dữ liệu', () => {
   const st = h.createState()
   assert.strictEqual(h.accept(st, msg({ q: 1, a: 10001, d: 40 }), 0).vibe, null)
-  assert.strictEqual(h.view(st, 0).mode, 'stale')
-  assert.strictEqual(h.view(st, 0).arrow, null)
-  assert.strictEqual(h.tick(st, 0), null) // tin đầu đã cũ: không rung mất dữ liệu
-  assert.strictEqual(h.accept(st, msg({ q: 2, a: 10000, d: 40 }), 1000).vibe, 'near')
+  const q = h.view(st, 0)
+  assert.strictEqual(q.mode, 'nav'); assert.strictEqual(q.banner, ''); assert.strictEqual(q.quiet, true)
+  assert.strictEqual(q.quietSec, 10); assert.strictEqual(q.urgency, 'normal'); assert.strictEqual(q.arcPercent, 0)
+  assert.ok(q.arrow && q.distance === '40 m')
+  assert.strictEqual(h.tick(st, 0), null)
+  assert.strictEqual(h.accept(st, msg({ q: 2, a: 65001, d: 40 }), 1000).vibe, null)
+  assert.strictEqual(h.view(st, 1000).mode, 'stale')
+  assert.strictEqual(h.view(st, 1000).arrow, null)
+  assert.strictEqual(h.tick(st, 1000), null) // tin đầu đã cũ: không rung mất dữ liệu
+  assert.strictEqual(h.accept(st, msg({ q: 3, a: 10000, d: 40 }), 2000).vibe, 'near')
+  const f = h.view(st, 2000)
+  assert.strictEqual(f.mode, 'nav'); assert.strictEqual(f.quiet, false); assert.strictEqual(f.urgency, 'near')
+})
+
+test('ranh giới: a+elapsed 10000 tươi, 10001 yên lặng, 65000 yên lặng, 65001 mất', () => {
+  const st = h.createState()
+  h.accept(st, msg({ a: 9000 }), 0)
+  assert.strictEqual(h.view(st, 1000).quiet, false)
+  assert.strictEqual(h.view(st, 1001).quiet, true)
+  const s2 = h.createState()
+  h.accept(s2, msg({ a: 10000 }), 0)
+  assert.strictEqual(h.view(s2, 0).quiet, false)
+  assert.strictEqual(h.quiet(s2, 0), false)
+  const s3 = h.createState()
+  h.accept(s3, msg({ a: 10001 }), 0)
+  assert.strictEqual(h.quiet(s3, 0), true)
+  const s4 = h.createState()
+  h.accept(s4, msg({ a: 62000 }), 0)
+  assert.strictEqual(h.view(s4, 3000).quiet, true)
+  assert.strictEqual(h.view(s4, 3000).mode, 'nav')
+  assert.strictEqual(h.view(s4, 3000).quietSec, 65)
+  assert.strictEqual(h.view(s4, 3001).mode, 'stale') // BLE im lặng > 3 s => stale ngay cả khi yên lặng
+  const s5 = h.createState()
+  h.accept(s5, msg({ a: 65000 }), 0)
+  assert.strictEqual(h.view(s5, 0).mode, 'nav')
+  const s6 = h.createState()
+  h.accept(s6, msg({ a: 65001 }), 0)
+  assert.strictEqual(h.view(s6, 0).mode, 'stale')
+})
+
+test('yên lặng: tick im lặng, vẫn là hướng dẫn; mất thật rung đúng 1 lần dù nhiều heartbeat cũ', () => {
+  const st = h.createState()
+  h.accept(st, msg({ a: 0, d: 500 }), 0)
+  h.accept(st, msg({ q: 2, a: 11000, d: 500 }), 1000) // heartbeat cũ (a > 10000): không nạp lại rung
+  assert.strictEqual(h.tick(st, 1000), null)
+  assert.strictEqual(h.hasFreshGuidance(st, 1000), true)
   assert.strictEqual(h.view(st, 1000).mode, 'nav')
+  let q = 2
+  let lost = 0
+  for (let t = 1000; t <= 70000; t += 2000) {
+    q++
+    h.accept(st, msg({ q: q, a: 11000 + (t - 1000) }), t)
+    if (h.tick(st, t) === 'lost') lost++
+    if (h.tick(st, t + 1500) === 'lost') lost++
+  }
+  assert.strictEqual(lost, 1)
+  h.accept(st, msg({ q: 999, a: 100000 }), 80000)
+  assert.strictEqual(h.tick(st, 80000), null)
+})
+
+test('k=2/k=3 giữ ngưỡng 10 s; BLE im lặng trong yên lặng là stale', () => {
+  const s2 = h.createState()
+  h.accept(s2, msg({ k: 2, a: 10000 }), 0)
+  assert.strictEqual(h.view(s2, 0).mode, 'recalc')
+  h.accept(s2, msg({ q: 2, k: 2, a: 10001 }), 100)
+  assert.strictEqual(h.view(s2, 100).mode, 'stale')
+  const s3 = h.createState()
+  h.accept(s3, msg({ k: 3, m: 12, a: 10001 }), 0)
+  assert.strictEqual(h.view(s3, 0).mode, 'stale')
+  assert.strictEqual(h.quiet(s3, 0), false)
+})
+
+test('phục hồi cùng bước sau mất thật: không rung trùng mức đã rung', () => {
+  const st = h.createState()
+  assert.strictEqual(h.accept(st, msg({ i: 4, d: 150 }), 0).vibe, 'far')
+  assert.strictEqual(h.tick(st, 4000), 'lost')
+  const r = h.accept(st, msg({ q: 2, i: 4, d: 140, a: 0 }), 5000)
+  assert.strictEqual(r.vibe, null)
+  assert.strictEqual(h.view(st, 5000).mode, 'nav')
+  assert.strictEqual(h.accept(st, msg({ q: 3, i: 4, d: 40 }), 5500).vibe, 'near')
 })
 
 test('mất dữ liệu rung đúng 1 lần mỗi đợt; k!=1 hoặc chưa có tin thì không rung', () => {
@@ -207,4 +282,100 @@ test('local demo 1 Hz không bao giờ báo MẤT DỮ LIỆU và đếm ngượ
   const d3 = h.demoMessage(8, 4, 3, 4)
   assert.strictEqual(d0.i, d3.i)
   assert.ok(d0.d > 200 && d3.d <= 50, 'khoảng cách bước gần phải đi qua cả 2 ngưỡng rung')
+})
+
+test('chốt mất do tuổi nguồn: heartbeat trễ cùng bài đăng không khôi phục; fresh mới khôi phục', () => {
+  const s2 = h.createState()
+  h.accept(s2, msg({ a: 0 }), 0) // nạp rung báo mất
+  h.accept(s2, msg({ q: 9, a: 63000 }), 0) // heartbeat cũ (không nạp lại)
+  assert.strictEqual(h.tick(s2, 2000), null)
+  assert.strictEqual(h.view(s2, 2001).mode, 'stale') // 65001 > 65000, elapsed < STALE_MS
+  assert.strictEqual(h.tick(s2, 2001), 'lost')
+  h.accept(s2, msg({ q: 10, a: 64990 }), 2100) // a + 0 <= 65000 nhưng cùng bài đăng đã mất
+  assert.strictEqual(h.view(s2, 2100).mode, 'stale')
+  assert.strictEqual(h.view(s2, 2100).banner, 'MẤT DỮ LIỆU')
+  assert.strictEqual(h.tick(s2, 2100), null)
+  h.accept(s2, msg({ q: 11, a: 64990 }), 3600)
+  assert.strictEqual(h.view(s2, 3600).mode, 'stale')
+  assert.strictEqual(h.tick(s2, 3600), null)
+  h.accept(s2, msg({ q: 12, a: 500 }), 4000) // tin tươi xóa chốt
+  assert.strictEqual(h.view(s2, 4000).mode, 'nav')
+  assert.strictEqual(h.view(s2, 4000).quiet, false)
+})
+
+test('chốt: không cần tick/view trước heartbeat trễ (accept tự chốt)', () => {
+  const st = h.createState()
+  h.accept(st, msg({ a: 64000 }), 0)
+  h.accept(st, msg({ q: 2, a: 64990 }), 2500) // tin cũ đã a+elapsed = 66500 > 65000
+  assert.strictEqual(h.view(st, 2500).mode, 'stale')
+})
+
+test('BLE im lặng không bị chốt: heartbeat cũ còn trong 65 s khôi phục yên lặng', () => {
+  const st = h.createState()
+  h.accept(st, msg({ a: 20000 }), 0)
+  assert.strictEqual(h.view(st, 1000).quiet, true)
+  assert.strictEqual(h.view(st, 5000).mode, 'stale')
+  h.accept(st, msg({ q: 2, a: 25000 }), 6000)
+  const v = h.view(st, 6000)
+  assert.strictEqual(v.mode, 'nav'); assert.strictEqual(v.quiet, true)
+})
+
+test('k=2/k=3: chốt theo ngưỡng 10 s; BLE-only vẫn khôi phục', () => {
+  const st = h.createState()
+  h.accept(st, msg({ k: 2, a: 9000 }), 0)
+  assert.strictEqual(h.view(st, 2000).mode, 'stale') // 11000 > 10000
+  h.accept(st, msg({ q: 2, k: 2, a: 10500 }), 2100)
+  assert.strictEqual(h.view(st, 2100).mode, 'stale')
+  h.accept(st, msg({ q: 3, k: 2, a: 0 }), 2200)
+  assert.strictEqual(h.view(st, 2200).mode, 'recalc')
+  const s3 = h.createState()
+  h.accept(s3, msg({ k: 3, m: 12, a: 0 }), 0)
+  assert.strictEqual(h.view(s3, 3500).mode, 'stale') // BLE im lặng
+  h.accept(s3, msg({ q: 2, k: 3, m: 12, a: 5000 }), 3600)
+  assert.strictEqual(h.view(s3, 3600).mode, 'arrived')
+})
+
+test('invalidate và đổi phiên xóa chốt', () => {
+  const st = h.createState()
+  h.accept(st, msg({ a: 64000 }), 0)
+  assert.strictEqual(h.view(st, 2000).mode, 'stale')
+  assert.strictEqual(st.srcLost, true)
+  h.invalidate(st)
+  assert.strictEqual(st.srcLost, false)
+  h.accept(st, msg({ q: 2, a: 64990 }), 2100)
+  assert.strictEqual(h.view(st, 2100).quiet, true)
+  const s2 = h.createState()
+  h.accept(s2, msg({ z: 1, a: 64000 }), 0)
+  assert.strictEqual(h.view(s2, 2000).mode, 'stale')
+  h.accept(s2, msg({ z: 2, q: 1, a: 30000 }), 2100)
+  assert.strictEqual(s2.srcLost, false)
+  assert.strictEqual(h.view(s2, 2100).quiet, true)
+})
+
+test('đổi k trong cùng phiên: chốt của k=2 không đè k=1 yên lặng; cùng k thì giữ chốt', () => {
+  const st = h.createState()
+  h.accept(st, msg({ k: 2, a: 9000 }), 0)
+  assert.strictEqual(h.view(st, 2000).mode, 'stale') // 11000 > 10000, chốt
+  h.accept(st, msg({ q: 2, k: 1, a: 11000 }), 2100)
+  const v = h.view(st, 2100)
+  assert.strictEqual(v.mode, 'nav'); assert.strictEqual(v.quiet, true); assert.strictEqual(v.banner, '')
+  const s2 = h.createState()
+  h.accept(s2, msg({ a: 63000 }), 0)
+  assert.strictEqual(h.view(s2, 2001).mode, 'stale')
+  h.accept(s2, msg({ q: 2, a: 64990 }), 2100)
+  assert.strictEqual(h.view(s2, 2100).mode, 'stale')
+})
+
+test('đồng hồ nhảy tới +61 s giữa 2 heartbeat (a 20->21): không chốt sai, hồi phục yên lặng', () => {
+  const st = h.createState()
+  h.accept(st, msg({ a: 0 }), 0) // nạp rung báo mất
+  h.accept(st, msg({ q: 2, a: 20000 }), 1000)
+  assert.strictEqual(h.view(st, 1000).quiet, true)
+  assert.strictEqual(h.view(st, 62000).mode, 'stale') // elapsed 61000 > STALE_MS (BLE im lặng)
+  assert.strictEqual(h.tick(st, 62000), 'lost') // do luật BLE im lặng, vốn có
+  assert.strictEqual(st.srcLost, false)
+  h.accept(st, msg({ q: 3, a: 21000 }), 62100)
+  const v = h.view(st, 62100)
+  assert.strictEqual(v.mode, 'nav'); assert.strictEqual(v.quiet, true); assert.strictEqual(v.banner, '')
+  assert.strictEqual(h.tick(st, 62100), null)
 })

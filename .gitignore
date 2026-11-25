@@ -20,6 +20,7 @@ node_modules/
 watch-app/build/
 watch-app/dist/
 watch-app/out/
+out/
 phone-app/build/
 phone-app/app/build/
 phone-app/.gradle/

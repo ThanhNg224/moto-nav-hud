@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pl_title">Quick places</string>
+    <string name="pl_back">Back</string>
+    <string name="pl_intro">Tap a place on the home screen to open Google Maps and navigate in motorcycle mode.</string>
+    <string name="pl_home">Home</string>
+    <string name="pl_work">Work</string>
+    <string name="pl_third">Third place</string>
+    <string name="pl_not_set">Not set</string>
+    <string name="pl_edit">Edit</string>
+    <string name="pl_field_name">Name</string>
+    <string name="pl_field_address">Address or place name</string>
+    <string name="pl_use_location">Use current location</string>
+    <string name="pl_locating">Getting location…</string>
+    <string name="pl_hint">Saves both the address and coordinates so Maps points straight at the spot. If the address cannot be converted to coordinates, Maps gets the text address.</string>
+    <string name="pl_save">Save place</string>
+    <string name="pl_saving">Saving…</string>
+    <string name="pl_delete">Delete</string>
+    <string name="pl_err_name">Enter a name</string>
+    <string name="pl_err_address">Enter an address or place name</string>
+    <string name="pl_err_full">All 3 places are used, edit or delete one</string>
+    <string name="pl_err_no_fix">Could not get your location, turn on GPS or enter an address</string>
+    <string name="pl_err_perm_denied">Location permission not granted. You can still type an address.</string>
+    <string name="pl_perm_settings_hint">Location permission is blocked. Turn it on in system settings, or type an address.</string>
+    <string name="pl_open_settings">Open settings</string>
+</resources>

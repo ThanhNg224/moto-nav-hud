@@ -31,4 +31,9 @@
     <string name="svc_tile_auto_paused">Auto-start paused</string>
     <string name="svc_notif_arrived">Arrived at destination</string>
     <string name="svc_tile_arrived">Arrived</string>
+    <string name="svc_notif_open_maps">Back to Maps</string>
+    <string name="svc_hud_start_failed">Could not start the HUD, open MotoNav and tap Start</string>
+    <string name="svc_maps_missing">Google Maps is not installed</string>
+    <string name="svc_shortcut_open_maps_short">Open Maps and start</string>
+    <string name="svc_shortcut_open_maps_long">Open Google Maps and start the watch HUD</string>
 </resources>

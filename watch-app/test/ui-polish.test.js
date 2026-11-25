@@ -338,3 +338,14 @@ test('palette: không còn màu gần trùng #ff4d2d / #ff6b6b trong index.ux', 
   assert.ok(!ux.includes('#ff4d2d'))
   assert.ok(!ux.includes('#ff6b6b'))
 })
+
+test('dấu tin cũ: khóa quiet.mark (vi/en) và gắn trong index.ux', () => {
+  assert.strictEqual(i18n.TABLES.vi['quiet.mark'], 'cũ {n}s')
+  assert.strictEqual(i18n.TABLES.en['quiet.mark'], 'old {n}s')
+  i18n.setLang('en')
+  try { assert.strictEqual(i18n.t('quiet.mark', 24), 'old 24s') } finally { i18n.setLang('vi') }
+  assert.strictEqual(i18n.t('quiet.mark', 24), 'cũ 24s')
+  const ux = fs.readFileSync(__dirname + '/../src/pages/index/index.ux', 'utf8')
+  assert.ok(ux.includes('{{quietMark}}'))
+  assert.ok(ux.includes("i18n.t('quiet.mark', v.quietSec)"))
+})

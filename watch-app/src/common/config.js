@@ -9,8 +9,12 @@ module.exports = {
   FOLD_DIACRITICS: false,
   // Quá ngần này ms kể từ tin hợp lệ gần nhất (đồng hồ tự đếm) thì báo MẤT DỮ LIỆU
   STALE_MS: 3000,
-  // Tuổi nguồn (trường a) vượt ngần này ms cũng coi là mất dữ liệu
+  // Giới hạn "tươi" của tuổi nguồn (trường a + thời gian đã trôi). Quá mức này, tin k=1 chuyển sang 'yên lặng'
+  // (Maps chỉ đăng lại khi chữ đổi nên đoạn đường thẳng dài là bình thường); với k khác 1 đây là ngưỡng MẤT DỮ LIỆU.
+  // Chỉ tin có a <= mức này mới được rung/nạp lại rung báo mất.
   MAX_SOURCE_AGE_MS: 10000,
+  // k=1: tuổi nguồn vượt ngần này ms mới MẤT DỮ LIỆU thật (banner đỏ + rung 'lost')
+  NAV_LOST_SOURCE_AGE_MS: 65000,
   // Ngưỡng rung (mét)
   VIBE_FAR_M: 200,
   VIBE_NEAR_M: 50,

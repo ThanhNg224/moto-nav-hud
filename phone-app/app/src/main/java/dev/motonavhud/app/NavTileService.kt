@@ -40,13 +40,21 @@ class NavTileService : TileService() {
             return
         }
         val ok = runCatching { NavForegroundService.startByUser(this, "tile") }.isSuccess
-        if (!ok) openApp()
+        if (!ok) openApp() else if (Prefs.isOpenMapsOnStart(this)) openMaps()
         syncTile()
     }
 
-    @SuppressLint("StartActivityAndCollapseDeprecated")
+    private fun openMaps() {
+        val intent = packageManager.getLaunchIntentForPackage(MapsLauncher.MAPS_PACKAGE) ?: return
+        launchAndCollapse(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     private fun openApp() {
-        val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        launchAndCollapse(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    @SuppressLint("StartActivityAndCollapseDeprecated")
+    private fun launchAndCollapse(intent: Intent) {
         if (Build.VERSION.SDK_INT >= 34) {
             val pi = PendingIntent.getActivity(this, 2, intent, PendingIntent.FLAG_IMMUTABLE)
             startActivityAndCollapse(pi)

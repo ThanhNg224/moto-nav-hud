@@ -41,6 +41,7 @@ class NavForegroundService : Service() {
     private var retry: Runnable? = null
     private var lastLogAt = 0L
     private var lastLogKmi = ""
+    private var lastAgeBucket = 0
     private var lastVerifyAt = 0L
     private var idleSince = 0L
     private var lastSubscribers = -1
@@ -127,6 +128,7 @@ class NavForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        EventLog.init(applicationContext)
         NavBus.serviceStartedAt = SystemClock.elapsedRealtime()
         requestedStopReason = null
         val channel = NotificationChannel(CHANNEL_ID, "MotoNav", NotificationManager.IMPORTANCE_LOW)
@@ -227,6 +229,7 @@ class NavForegroundService : Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val stopIntent = Intent(this, NavForegroundService::class.java).setAction(ACTION_STOP)
         val stopPi = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE)
+        val mapsPi = PendingIntent.getActivity(this, 2, QuickLaunchActivity.openMapsIntent(this), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val text = when (s) {
             NavBus.ServiceStatus.WAITING -> R.string.svc_notif_waiting
             NavBus.ServiceStatus.CONNECTED -> R.string.svc_notif_connected
@@ -243,6 +246,7 @@ class NavForegroundService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
+            .addAction(Notification.Action.Builder(null, getString(R.string.svc_notif_open_maps), mapsPi).build())
             .addAction(Notification.Action.Builder(null, getString(R.string.svc_notif_stop), stopPi).build())
             .build()
     }
@@ -376,6 +380,14 @@ class NavForegroundService : Service() {
     /** Ghi log ngay khi k/m/i đổi; nhịp đều không đổi chỉ ghi tối đa 1 dòng mỗi 30 s để không spam logcat. */
     private fun logPayload(e: Throttle.Emission, now: Long) {
         val r = e.render(now)
+        // Tuổi nguồn thô (render() đưa về IDLE/0 khi quá 15 s nên không dùng r.a).
+        val rawAge = e.sourceAt?.let { (now - it).coerceAtLeast(0) } ?: 0L
+        // Bucket khớp ngưỡng đồng hồ: 1 = "cũ" (>= 10 s), 2 = mất dữ liệu cứng (>= 65 s); k về 0 sau 75 s.
+        val bucket = if (e.state.k != 1) 0 else if (rawAge > 65000) 2 else if (rawAge > 10000) 1 else 0
+        if (bucket != lastAgeBucket) {
+            lastAgeBucket = bucket
+            NavBus.logEvent("src_age_cross bucket=$bucket a=$rawAge k=${e.state.k}")
+        }
         val kmi = "${r.state.k}/${r.state.m}/${e.i}"
         if (kmi == lastLogKmi && now - lastLogAt < PAYLOAD_HEARTBEAT_LOG_MS) return
         lastLogKmi = kmi

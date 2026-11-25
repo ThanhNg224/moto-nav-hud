@@ -98,12 +98,28 @@ object NavBus {
     private val listeners = CopyOnWriteArraySet<() -> Unit>()
 
     /** Một cập nhật thật từ Maps (hoặc IDLE khi notification biến mất/listener ngắt). Trả về version mới. */
-    fun publishMaps(state: NavState, atMs: Long = SystemClock.elapsedRealtime()): Int {
+    private var lastPostWallMs = -1L
+
+    /** [postTimeMs] là `sbn.postTime` (epoch ms) của Maps; 0 = không có (gap_ms=-1). */
+    fun publishMaps(state: NavState, atMs: Long = SystemClock.elapsedRealtime(), postTimeMs: Long = 0L): Int {
+        var gapMs = -1L
+        var logPost = true
         val ver = synchronized(this) {
+            if (state.k == NavState.K_IDLE) lastPostWallMs = -1L else {
+                if (postTimeMs > 0 && postTimeMs == lastPostWallMs) {
+                    logPost = false // cùng một bài đăng Maps (seed/verify rồi callback trễ): không log lại
+                } else {
+                    if (lastPostWallMs > 0 && postTimeMs > 0) {
+                        gapMs = (postTimeMs - lastPostWallMs).takeIf { it >= 0 } ?: -1L
+                    }
+                    lastPostWallMs = postTimeMs
+                }
+            }
             val next = mapsSnapshot.version + 1
             mapsSnapshot = MapsSnapshot(state, atMs, next)
             next
         }
+        if (state.k != NavState.K_IDLE && logPost) logEvent("maps_post gap_ms=$gapMs k=${state.k}")
         if (state.k != NavState.K_IDLE && demo) {
             demo = false // Maps thật thắng demo ngay lập tức (đồng thời bump epoch để bỏ khung demo xếp hàng)
             changed()

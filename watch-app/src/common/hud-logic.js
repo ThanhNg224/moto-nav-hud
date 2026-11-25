@@ -119,6 +119,7 @@ function createState(cfg) {
     lastRecv: 0,
     lost: false,      // đã mất dữ liệu/ngắt kênh, chưa có tin mới
     clockBack: false, // đồng hồ lùi: coi là mất dữ liệu tới khi có tin mới
+    srcLost: false,   // tuổi nguồn đã vượt ngưỡng mất: giữ tới khi có tin TƯƠI (a <= MAX_SOURCE_AGE_MS), đổi phiên hoặc ngắt kênh
     lostVibed: false,
     armed: false,     // chỉ rung mất dữ liệu sau khi đã nhận 1 tin dẫn đường còn tươi
     high: 0,          // mốc đồng hồ cao nhất từ tin chấp nhận gần nhất
@@ -133,7 +134,16 @@ function stale(state, now) {
   else state.high = now
   if (state.clockBack) return true
   var elapsed = now - state.lastRecv
-  return elapsed > state.cfg.STALE_MS || state.msg.a + elapsed > state.cfg.MAX_SOURCE_AGE_MS
+  var limit = state.msg.k === 1 ? state.cfg.NAV_LOST_SOURCE_AGE_MS : state.cfg.MAX_SOURCE_AGE_MS
+  // Chỉ chốt khi liên kết còn khỏe (elapsed <= STALE_MS): nếu không, ước lượng không đáng tin (vd đồng hồ nhảy) và BLE im lặng đã báo stale (không chốt)
+  if (state.msg.a + elapsed > limit && elapsed <= state.cfg.STALE_MS) state.srcLost = true
+  return state.srcLost || elapsed > state.cfg.STALE_MS
+}
+
+// k=1 còn kết nối nhưng nguồn Maps đã >MAX_SOURCE_AGE_MS chưa đăng lại: giữ hướng dẫn, tắt cảnh báo/rung
+function quiet(state, now) {
+  var m = state.msg
+  return !!m && m.k === 1 && !stale(state, now) && m.a + (now - state.lastRecv) > state.cfg.MAX_SOURCE_AGE_MS
 }
 
 // Nhận 1 tin đã parse (đã qua parsePayload). now = đồng hồ đồng hồ (ms).
@@ -144,7 +154,12 @@ function accept(state, msg, now) {
   var cfg = state.cfg
   if (state.retired.indexOf(msg.z) >= 0) return no
   if (msg.z === state.z && msg.q <= state.lastQ) return no
+  if (state.msg) {
+    stale(state, now)   // chốt mất do tuổi nguồn của tin cũ trước khi ghi đè (heartbeat trễ không được khôi phục)
+    if (state.msg.k !== msg.k) state.srcLost = false   // đổi k = chuyển trạng thái thật: tin mới xét theo ngưỡng tuổi riêng
+  }
   if (msg.z !== state.z) {
+    state.srcLost = false
     if (state.z !== null) {
       state.retired.push(state.z)
       if (state.retired.length > RETIRED_MAX) state.retired.shift()
@@ -160,6 +175,7 @@ function accept(state, msg, now) {
   state.lost = false
   state.clockBack = false
   if (msg.a > cfg.MAX_SOURCE_AGE_MS) return { accepted: true, vibe: null, cancel: true }
+  state.srcLost = false
   state.lostVibed = false
   state.armed = msg.k === 1
   if (msg.k !== 1 || msg.m === 0 || msg.d < 0) return { accepted: true, vibe: null, cancel: true }
@@ -193,6 +209,7 @@ function invalidate(state) {
   var vibe = state.armed && state.msg.k === 1 && !state.lostVibed ? 'lost' : null
   state.armed = false
   state.msg = null
+  state.srcLost = false
   state.lost = true
   state.lostVibed = true
   return vibe
@@ -201,7 +218,7 @@ function invalidate(state) {
 function emptyView(mode, banner) {
   return {
     mode: mode, urgency: 'normal', arcPercent: 0,
-    arrow: null, exitBadge: '', distance: '', banner: banner || '',
+    arrow: null, exitBadge: '', distance: '', banner: banner || '', quiet: false, quietSec: 0,
     street: '', road: '', eta: '', remain: '', bottom: ''
   }
 }
@@ -234,6 +251,11 @@ function viewCore(state, now) {
   if (m.k === 3) { v.mode = 'arrived'; v.arrow = null; v.street = ''; v.road = ''; v.exitBadge = ''; v.banner = i18n.t('banner.arrived'); v.arcPercent = 100; return v }
   v.arrow = arrowAsset(m.m)
   v.distance = formatDistance(m.d)
+  if (quiet(state, now)) {
+    v.quiet = true
+    v.quietSec = Math.floor((m.a + now - state.lastRecv) / 1000)
+    return v
+  }
   if (m.d >= 0) {
     // Vòng cung tiến gần điểm rẽ: 500 m -> 6%, 0 m -> 100%
     v.arcPercent = Math.round(Math.max(6, Math.min(100, (1 - m.d / 500) * 100)))
@@ -301,5 +323,5 @@ module.exports = {
   NAMES: NAMES, HAPTIC_PRESETS: HAPTIC_PRESETS, presetLabel: presetLabel, shouldCloseMenu: shouldCloseMenu, canOpenMenu: canOpenMenu, nextRouteActive: nextRouteActive, hasFreshGuidance: hasFreshGuidance, isGuiding: isGuiding, PRESET_ORDER: PRESET_ORDER, applyPreset: applyPreset,
   arrowAsset: arrowAsset, formatDistance: formatDistance, foldDiacritics: foldDiacritics,
   utf8Decode: utf8Decode, parsePayload: parsePayload, createState: createState, accept: accept, invalidate: invalidate,
-  isStale: isStale, tick: tick, view: view, demoMessage: demoMessage, DEMO_LENGTH: DEMO.length
+  isStale: isStale, quiet: quiet, tick: tick, view: view, demoMessage: demoMessage, DEMO_LENGTH: DEMO.length
 }

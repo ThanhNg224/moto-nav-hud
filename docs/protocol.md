@@ -1,6 +1,6 @@
-# Hợp đồng dữ liệu phone -> watch (v1.3)
+# Hợp đồng dữ liệu phone -> watch (v1.4)
 
-Nguồn sự thật duy nhất cho `phone-app/` và `watch-app/`. Đổi hợp đồng phải sửa file này trước. v1.1 (2026-11-23) tiếp thu review thiết kế của Codex Astra (`docs/research/05-codex-protocol-review.md`). v1.2 tiếp thu review code của Codex sol: thêm mã ghép `p`, NAV chỉ Notify, tuổi hiệu dụng phía đồng hồ, ngân sách byte thực tế. v1.3 (2026-11-23): thêm khóa tùy chọn `y` đánh dấu khung demo của phone.
+Nguồn sự thật duy nhất cho `phone-app/` và `watch-app/`. Đổi hợp đồng phải sửa file này trước. v1.1 (2026-11-23) tiếp thu review thiết kế của Codex Astra (`docs/research/05-codex-protocol-review.md`). v1.2 tiếp thu review code của Codex sol: thêm mã ghép `p`, NAV chỉ Notify, tuổi hiệu dụng phía đồng hồ, ngân sách byte thực tế. v1.3 (2026-11-23): thêm khóa tùy chọn `y` đánh dấu khung demo của phone. v1.4 (2026-11-25, app 0.4.2): payload không đổi; đổi quy tắc tuổi nguồn `a` cho `k=1` (im lặng 10–65 s là "cũ" chứ không mất dữ liệu) và thời hạn phone tự về `k=0`.
 
 ## Payload (JSON UTF-8, kích thước đo trên chuỗi đã serialize, tối đa `min(180, MTU-3)` byte)
 
@@ -32,17 +32,20 @@ Thứ tự cắt khi vượt ngân sách byte: bỏ `e`, rồi rút `s` dần, r
 ## Quy tắc phía phone
 
 - Gửi khi có thay đổi (`k`, `m`, `x`, `s`, `d` lệch từ 10 m trở lên) và heartbeat mỗi 1000 ms. Heartbeat gửi lại trạng thái cuối cùng với `a` tăng đúng theo thời gian, `q` tăng.
-- Khi thông báo Maps biến mất, listener mất kết nối, parse thất bại hoặc nguồn không có bản đăng mới quá 15 giây: gửi `k=0` (hoặc `k=2` nếu đang tính lại tuyến), tuyệt đối không giữ `k=1` với dữ liệu cũ. Phone định kỳ 3 s kiểm tra `getActiveNotifications` để phát hiện ngay thông báo biến mất hoặc đọc bù bản đăng có `postTime` mới hơn bị lỡ callback — nhưng KHÔNG làm mới `a` nếu thông báo không có cập nhật mới.
+- Khi thông báo Maps biến mất, listener mất kết nối hoặc parse thất bại: gửi `k=0` (hoặc `k=2` nếu đang tính lại tuyến) ngay. Thời hạn theo nguồn: `k=1` hết hạn sau 75 giây không có bản đăng Maps mới (Maps chỉ đăng lại khi chữ hiển thị đổi nên im 30–60 giây trên đường thẳng/khi dừng là bình thường); `k=3` hết hạn sau 15 giây; `k=2` không hết hạn theo thời gian. Hết hạn thì gửi `k=0`, không giữ trạng thái cũ. Phone định kỳ 3 s kiểm tra `getActiveNotifications` để phát hiện ngay thông báo biến mất hoặc đọc bù bản đăng có `postTime` mới hơn bị lỡ callback — kiểm tra này KHÔNG làm mới `a`; `a` chỉ tăng theo thời gian kể từ bản đăng Maps thật gần nhất.
 - `k=3` chỉ khi đã nhận ra rõ là đến nơi; hủy dẫn đường là `k=0`.
 - `z` mới mỗi lần service khởi động; `q` bắt đầu từ 1.
 
 ## Quy tắc phía đồng hồ
 
 - **Chấp nhận tin:** bỏ tin sai `v`, JSON hỏng, thiếu lõi, hoặc `q` không lớn hơn `q` đã nhận cùng `z` (trùng lặp cũng bị bỏ, không làm mới timer). Khi gặp `z` mới: chấp nhận ngay, đặt lại `q` và trạng thái rung, ẩn hướng dẫn cho tới khi có tin hợp lệ đầu tiên của session.
-- **Staleness (đồng hồ của watch):** quá 3000 ms không có tin được chấp nhận, hoặc tuổi hiệu dụng `a + (now - thời điểm nhận)` > 10000 ms: hiện "MẤT DỮ LIỆU", ẩn mũi tên. Nếu đồng hồ lùi (now < thời điểm nhận) thì coi là mất dữ liệu cho tới khi có tin mới. Khi kênh ngắt, xóa hướng dẫn đang hiển thị ngay (giữ riêng `z`/`q` cuối để tin trùng không khôi phục lại), và ẩn cho tới khi nhận tin hợp lệ mới. Đồng hồ nhớ vài `z` đã bị thay thế và bỏ tin của chúng.
+- **Staleness (đồng hồ của watch):** quá 3000 ms không có tin được chấp nhận (`STALE_MS`): hiện "MẤT DỮ LIỆU" ngay, ẩn mũi tên, kể cả khi đang ở trạng thái im lặng bên dưới. Tuổi nguồn `a + (now - thời điểm nhận)` (`MAX_SOURCE_AGE_MS` = 10000 ms, `NAV_LOST_SOURCE_AGE_MS` = 65000 ms), áp dụng theo `k`:
+  - `k=1` (đang dẫn đường): tới 10000 ms là **tươi**; trên 10000 đến 65000 ms là **im lặng (cũ)**: giữ mũi tên, khoảng cách và tên đường, hiện dấu mờ "cũ Ns" (bản tiếng Anh "old Ns") cạnh khoảng cách, không banner, không rung "mất dữ liệu", không rung tiệm cận, không đổi màu tiếp cận hay vòng cung; trên 65000 ms: "MẤT DỮ LIỆU" như trên, ẩn mũi tên.
+  - `k=2` (tính lại tuyến) và `k=3` (đã đến): giới hạn 10000 ms như trước, quá thì "MẤT DỮ LIỆU".
+  - Nếu đồng hồ lùi (now < thời điểm nhận) thì coi là mất dữ liệu cho tới khi có tin mới. Khi kênh ngắt, xóa hướng dẫn đang hiển thị ngay (giữ riêng `z`/`q` cuối để tin trùng không khôi phục lại), và ẩn cho tới khi nhận tin hợp lệ mới. Đồng hồ nhớ vài `z` đã bị thay thế và bỏ tin của chúng.
 - **Kiểm tra miền giá trị trước khi đổi trạng thái:** `q` >= 1, `a` >= 0, `d` >= -1, `x` >= 0, mọi số nguyên trong miền an toàn của JS, `p` khớp; UTF-8 hỏng thì bỏ tin.
 - **`k` ưu tiên:** `k` khác 1 thì xóa mũi tên và mọi cảnh báo rẽ ngay lập tức. `k=0` hiện màn chờ, `k=2` hiện "Đang tính lại", `k=3` hiện "Đã đến".
-- **Rung:** chỉ khi `k=1`, `m` khác 0 và `d >= 0`. Mỗi bước (`i`) chỉ rung một lần, theo ngưỡng khẩn nhất đang áp dụng: `d <= 50` rung 3 xung dài, ngược lại `d <= 200` rung 2 xung ngắn. Lần quan sát đầu tiên đã nằm trong ngưỡng cũng được rung (một lần, đúng ngưỡng khẩn nhất). Khi ngưỡng khẩn hơn xuất hiện thì hủy rung đang chạy rồi mới rung mới. Mất dữ liệu rung 1 lần cho mỗi đợt mất; màn chờ, đã đến, và timeout lúc khởi động không rung.
+- **Rung:** chỉ khi `k=1`, `m` khác 0, `d >= 0` và nguồn đang tươi (không rung khi im lặng "cũ"). Mỗi bước (`i`) chỉ rung một lần, theo ngưỡng khẩn nhất đang áp dụng: `d <= 50` rung 3 xung dài, ngược lại `d <= 200` rung 2 xung ngắn. Lần quan sát đầu tiên đã nằm trong ngưỡng cũng được rung (một lần, đúng ngưỡng khẩn nhất). Khi ngưỡng khẩn hơn xuất hiện thì hủy rung đang chạy rồi mới rung mới. Mất dữ liệu rung 1 lần cho mỗi đợt mất; màn chờ, đã đến, và timeout lúc khởi động không rung.
 
 ## Maneuver (`m`)
 

@@ -1,6 +1,8 @@
 package dev.motonavhud.app
 
 import dev.motonavhud.core.NavState
+import dev.motonavhud.core.PlaceKind
+import dev.motonavhud.core.QuickPlace
 
 /** Logic thuần của UI (không phụ thuộc Android) để test trên JVM. */
 
@@ -90,3 +92,38 @@ fun notifStep(permGranted: Boolean, appEnabled: Boolean, channelBlocked: Boolean
 /** Số cột chip: 4 nếu mỗi chip còn >= 48dp, ngược lại 2 để chip không hẹp hơn mục tiêu chạm. */
 fun chipColumns(availableDp: Int, chips: Int, gapDp: Int = 6, minDp: Int = 48) =
     if ((availableDp - gapDp * (chips - 1)) / chips >= minDp) chips else 2
+
+/** Chế độ nội dung của màn chính: SETUP thay đồng hồ bằng danh sách quyền; các chế độ còn lại theo trạng thái dẫn đường. */
+enum class HomeMode { SETUP, IDLE, NAVIGATING, REROUTING, ARRIVED }
+
+/** SETUP chỉ khi service chưa chạy và thiếu quyền bắt buộc (Bluetooth hoặc đọc thông báo). Service đang chạy thì luôn hiện trạng thái thật. */
+fun homeMode(setupNeeded: Boolean, running: Boolean, k: Int): HomeMode = when {
+    !running -> if (setupNeeded) HomeMode.SETUP else HomeMode.IDLE
+    k == NavState.K_NAVIGATING -> HomeMode.NAVIGATING
+    k == NavState.K_REROUTING -> HomeMode.REROUTING
+    k == NavState.K_ARRIVED -> HomeMode.ARRIVED
+    else -> HomeMode.IDLE
+}
+
+/** Bố cục thanh nút dưới cùng: IDLE = [cài đặt][Mở Maps], RUNNING = [Dừng][Về Maps], DEMO = [Dừng][Dừng chạy thử], SETUP = nút chính bị khóa. */
+enum class DockMode { SETUP, IDLE, RUNNING, DEMO }
+
+fun dockMode(setupNeeded: Boolean, running: Boolean, demo: Boolean): DockMode = when {
+    demo -> DockMode.DEMO
+    running -> DockMode.RUNNING
+    setupNeeded -> DockMode.SETUP
+    else -> DockMode.IDLE
+}
+
+/** Số bước thiết lập còn thiếu (mỗi phần tử = một bước đã xong hay chưa). */
+fun setupStepsLeft(vararg done: Boolean) = done.count { !it }
+
+/** Che mã ghép: chỉ lộ 4 ký tự cuối khi mã dài hơn 4; mã ngắn che hết. */
+fun maskToken(t: String) = if (t.length <= 4) "\u2022".repeat(t.length) else "\u2022\u2022\u2022\u2022 " + t.takeLast(4)
+
+/** Một ô "Đi nhanh": [kind] cố định theo vị trí (Nhà, Cơ quan, ô thứ ba); [place] null nghĩa là chưa lưu. */
+data class QuickSlot(val kind: PlaceKind, val place: QuickPlace?)
+
+/** Luôn đúng 3 ô: Nhà, Cơ quan, rồi điểm khác đã lưu (nếu chưa có thì ô "Thêm"). */
+fun quickSlots(places: List<QuickPlace>) = listOf(PlaceKind.HOME, PlaceKind.WORK, PlaceKind.OTHER)
+    .map { kind -> QuickSlot(kind, places.firstOrNull { it.kind == kind }) }

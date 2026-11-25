@@ -12,7 +12,7 @@
 
     <string name="ui_demo_prefix">"[Demo] "</string>
     <string name="ui_hero_ready">Ready</string>
-    <string name="ui_hero_ready_title">MotoNav will try to start when Google Maps begins navigating</string>
+    <string name="ui_hero_ready_title">Starts when Maps navigates</string>
     <string name="ui_hero_ready_meta">If Android blocks it, tap Start or use the MotoNav tile in Quick Settings</string>
     <string name="ui_hero_stopped">Stopped</string>
     <string name="ui_hero_disabled_title">Tap Start to connect to Watch S5</string>
@@ -30,7 +30,7 @@
     <string name="ui_hero_connecting_title">Waiting for Android to connect the notification service</string>
     <string name="ui_hero_connecting_meta">If this lasts, turn notification access off and on, or tap Start</string>
     <string name="ui_hero_wait_maps">Waiting for Maps</string>
-    <string name="ui_hero_wait_maps_title">Open Google Maps in motorcycle mode</string>
+    <string name="ui_hero_wait_maps_title">Open Google Maps to navigate</string>
     <string name="ui_hero_idle_countdown">Auto-stop in %1$dm %2$ds</string>
     <string name="ui_hero_idle_holding">Keeping the watch connection</string>
     <string name="ui_hero_rerouting">Rerouting</string>
@@ -68,8 +68,8 @@
 
     <string name="ui_warn_mtu">Note: the Bluetooth link can\'t carry full directions right now, so the watch may not receive them. Disconnect and reconnect the watch.</string>
 
-    <string name="ui_card_watch">WATCH S5</string>
-    <string name="ui_card_maps">GOOGLE MAPS</string>
+    <string name="ui_card_watch">Watch S5</string>
+    <string name="ui_card_maps">Google Maps</string>
     <string name="ui_watch_no_permission">Permission needed</string>
     <string name="ui_watch_no_permission_sub">Bluetooth permission required</string>
     <string name="ui_watch_delivery">Delivery problem</string>
@@ -172,4 +172,71 @@
     <string name="ui_demo_blocked">Demo can\'t start while Google Maps is navigating. End the trip in Maps first.</string>
     <string name="ui_start">Start</string>
     <string name="ui_stop">Stop</string>
+
+    <!-- v0.5 UI: home, setup, settings -->
+    <string name="ui_nav_next_turn">Next turn</string>
+    <string name="ui_nav_into_after">onto %1$s in %2$s</string>
+    <string name="ui_nav_after">in %1$s</string>
+    <string name="ui_nav_receiving">Receiving</string>
+    <string name="ui_row_remaining">Remaining</string>
+    <string name="ui_row_eta">Arrive at</string>
+    <string name="ui_row_auto_stop">Auto-stop</string>
+    <string name="ui_section_status">Status</string>
+    <string name="ui_auto_stop_after">after %1$d min</string>
+    <string name="ui_quick_title">Quick go</string>
+    <string name="ui_quick_hint">Opens Maps · %1$s</string>
+    <string name="ui_quick_home">Home</string>
+    <string name="ui_quick_work">Work</string>
+    <string name="ui_quick_add">Add</string>
+    <string name="ui_mode_two_wheeler">Motorbike</string>
+    <string name="ui_mode_drive">Car</string>
+    <string name="ui_mode_bicycle">Bike</string>
+    <string name="ui_mode_walk">Walk</string>
+    <string name="ui_maps_missing">Google Maps is not installed</string>
+    <string name="ui_start_maps">Open Maps and start</string>
+    <string name="ui_back_to_maps">Back to Google Maps</string>
+    <string name="ui_setup_blocked_btn">Finish setup to start</string>
+    <string name="ui_setup_eyebrow">First-time setup · %1$d/4</string>
+    <plurals name="ui_setup_steps_left">
+        <item quantity="one">%1$d STEP LEFT</item>
+        <item quantity="other">%1$d STEPS LEFT</item>
+    </plurals>
+    <string name="ui_setup_sentence">Grant these permissions so MotoNav can read directions from Google Maps and send them to your watch.</string>
+    <string name="ui_setup_note">MotoNav only reads Google Maps navigation notifications. In Settings, turn on MotoNav under \"Notification access\".</string>
+    <string name="ui_perm_bt_title">Bluetooth</string>
+    <string name="ui_perm_bt_sub">Required · Sends turns to your watch</string>
+    <string name="ui_perm_notif_title">Notifications</string>
+    <string name="ui_perm_notif_sub">Optional · Shows a notification while running so you can stop it fast</string>
+    <string name="ui_perm_listener_title">Read Maps notifications</string>
+    <string name="ui_perm_listener_sub">Required · Reads directions from Google Maps</string>
+    <string name="ui_perm_battery_title">No battery optimization</string>
+    <string name="ui_perm_battery_sub">Optional · Keeps Android from stopping it in the background</string>
+    <string name="ui_btn_grant">Grant</string>
+    <string name="ui_btn_open">Open</string>
+    <string name="ui_btn_open_settings">App settings</string>
+    <string name="ui_status_granted">Granted</string>
+    <string name="ui_status_needed">Needed</string>
+    <string name="ui_state_on">On</string>
+    <string name="ui_state_off">Off</string>
+    <string name="ui_back">Back</string>
+    <string name="ui_set_group_auto">Automatic</string>
+    <string name="ui_set_auto_start">Auto-start</string>
+    <string name="ui_set_auto_stop">Auto-stop after</string>
+    <string name="ui_seg_minutes">%1$d min</string>
+    <string name="ui_set_group_maps">Google Maps</string>
+    <string name="ui_set_open_maps">Open Maps when starting</string>
+    <string name="ui_set_open_maps_sub">One tap to go, HUD starts automatically</string>
+    <string name="ui_set_travel_mode">Travel mode</string>
+    <string name="ui_set_travel_mode_help">Applies to Quick destinations. Google Maps must support this mode in your country.</string>
+    <string name="ui_set_places">Quick destinations</string>
+    <string name="ui_places_none">Nothing saved yet</string>
+    <string name="ui_set_group_perms">Permissions</string>
+    <string name="ui_set_group_pair">Watch connection</string>
+    <string name="ui_pair_title">Pairing code</string>
+    <string name="ui_pair_change">Change</string>
+    <string name="ui_set_group_adv">Advanced</string>
+    <string name="ui_adv_demo_title">HUD demo</string>
+    <string name="ui_adv_demo_sub">See the HUD on your watch without navigating</string>
+    <string name="ui_adv_diag_title">Diagnostics and logs</string>
+    <string name="ui_adv_diag_sub">Latest payload, Bluetooth status</string>
 </resources>

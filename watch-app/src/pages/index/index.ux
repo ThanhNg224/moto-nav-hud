@@ -14,6 +14,8 @@
 
     <!-- Khoảng cách lớn & tên đường -->
     <text class="dist {{distClass}}" if="{{distance}}">{{distance}}</text>
+    <!-- Dấu "cũ Ns": tin Maps đã lâu chưa đổi (yên lặng), đối xứng huy hiệu LỐI bên trái dial -->
+    <text class="quiet-mark" if="{{quietMark}}">{{quietMark}}</text>
     <text class="street" if="{{street}}">{{street}}</text>
 
     <!-- Viên thuốc ETA / km còn lại (chạm để chuyển đổi đồng hồ giờ hiện tại) -->
@@ -163,6 +165,18 @@
 }
 .dist-far { color: #ffd000; }
 .dist-near { color: #ff5a36; }
+
+/* Dấu tin cũ: bên trái dial (186..294), cách mép trái dial 20px; góc ngoài r < 223px */
+.quiet-mark {
+  position: absolute;
+  left: 70px;
+  top: 106px;
+  width: 96px;
+  height: 36px;
+  font-size: 20px;
+  color: #94a3b8;
+  text-align: center;
+}
 
 /* Tên đường tối đa 2 dòng: góc dưới r = 202.3px < 223px */
 .street {
@@ -466,6 +480,7 @@ export default {
     exitBadge: '',
     distance: '',
     distClass: '',
+    quietMark: '',
     banner: '',
     bannerClass: 'banner-wait',
     hint: '',
@@ -716,6 +731,7 @@ export default {
     const ev = hud.tick(st, now)
     if (ev === 'lost') { L.log('stale', 'pulse'); this.dismissMenu(); buzz.cancel(); buzz.play('lost') }
     const v = hud.view(st, now)
+    if (v.quiet && !demo && buzz && buzz.active()) buzz.cancelTurn()   // tin cũ: không để xung báo rẽ đang chờ/chạy vượt ngưỡng trên khoảng cách cũ
     // Chỉ hướng dẫn THẬT (không chạy thử cục bộ, không chạy thử từ ĐT) mới khóa menu khi mất tin giữa tuyến
     routeActive = hud.nextRouteActive(routeActive, v.mode, !!demo, v.phoneDemo)
     if (hud.shouldCloseMenu({
@@ -747,6 +763,7 @@ export default {
     this.setField('arrow', v.arrow || '')
     this.setField('exitBadge', v.exitBadge || '')
     this.setField('distance', v.distance)
+    this.setField('quietMark', v.quiet ? i18n.t('quiet.mark', v.quietSec) : '')
     this.setField('distClass', v.urgency === 'near' ? 'dist-near' : (v.urgency === 'far' ? 'dist-far' : ''))
     this.setField('banner', isWait ? pre.banner : v.banner)
     this.setField('bannerClass', bannerCls)

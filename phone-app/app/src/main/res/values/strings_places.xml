@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pl_title">Điểm đến nhanh</string>
+    <string name="pl_back">Quay lại</string>
+    <string name="pl_intro">Chạm một điểm trên màn chính để mở Google Maps và chỉ đường bằng chế độ xe máy.</string>
+    <string name="pl_home">Nhà</string>
+    <string name="pl_work">Cơ quan</string>
+    <string name="pl_third">Điểm thứ ba</string>
+    <string name="pl_not_set">Chưa đặt</string>
+    <string name="pl_edit">Sửa</string>
+    <string name="pl_field_name">Tên gọi</string>
+    <string name="pl_field_address">Địa chỉ hoặc tên địa điểm</string>
+    <string name="pl_use_location">Dùng vị trí hiện tại</string>
+    <string name="pl_locating">Đang lấy vị trí…</string>
+    <string name="pl_hint">Lưu cả địa chỉ và tọa độ để Maps chỉ thẳng vào điểm. Nếu không đổi được địa chỉ thành tọa độ, Maps nhận địa chỉ chữ.</string>
+    <string name="pl_save">Lưu điểm đến</string>
+    <string name="pl_saving">Đang lưu…</string>
+    <string name="pl_delete">Xóa</string>
+    <string name="pl_err_name">Hãy nhập tên gọi</string>
+    <string name="pl_err_address">Hãy nhập địa chỉ hoặc tên địa điểm</string>
+    <string name="pl_err_full">Đã đủ 3 điểm, hãy sửa hoặc xóa một điểm</string>
+    <string name="pl_err_no_fix">Chưa lấy được vị trí, hãy bật GPS hoặc nhập địa chỉ</string>
+    <string name="pl_err_perm_denied">Chưa có quyền vị trí. Bạn vẫn có thể nhập địa chỉ bằng tay.</string>
+    <string name="pl_perm_settings_hint">Quyền vị trí đang bị chặn. Hãy bật lại trong cài đặt hệ thống, hoặc nhập địa chỉ bằng tay.</string>
+    <string name="pl_open_settings">Mở cài đặt</string>
+</resources>

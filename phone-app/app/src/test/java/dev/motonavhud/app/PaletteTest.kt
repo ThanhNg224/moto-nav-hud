@@ -29,4 +29,19 @@ class PaletteTest {
         ok(Palette.WHITE, Palette.FILL_OK)
         ok(Palette.WHITE, Palette.FILL_DANGER)
     }
+
+    @Test
+    fun designTokensReadable() {
+        for (t in listOf(Palette.LIGHT, Palette.DARK)) {
+            ok(t.on, t.bg); ok(t.on, t.s1); ok(t.on, t.s2)
+            ok(t.dim, t.bg); ok(t.dim, t.s1); ok(t.dim, t.s2)
+            ok(t.accent, t.bg); ok(t.accent, t.s1)
+            ok(t.onAccent, t.accent)
+            ok(t.onAccentTint, t.accentTint)
+            ok(t.onWarnTint, t.warnTint)
+            ok(t.onErrorTint, t.errorTint)
+            ok(t.error, t.bg); ok(t.error, t.s1)
+            ok(t.outline, t.bg, 3.0); ok(t.outline, t.s1, 3.0); ok(t.warn, t.bg, 3.0)
+        }
+    }
 }

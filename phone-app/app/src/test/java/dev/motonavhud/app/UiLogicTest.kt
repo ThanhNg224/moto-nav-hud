@@ -1,6 +1,8 @@
 package dev.motonavhud.app
 
 import dev.motonavhud.core.NavState
+import dev.motonavhud.core.PlaceKind
+import dev.motonavhud.core.QuickPlace
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -92,5 +94,48 @@ class UiLogicTest {
         assertEquals(PermMemory(deniedOnce = true, permanent = true), second)
         // Cấp quyền xóa trạng thái
         assertEquals(PermMemory(), permAfterResult(second, granted = true, rationaleBefore = false, rationaleNow = false))
+    }
+
+    @Test
+    fun homeModeFollowsRunningAndState() {
+        assertEquals(HomeMode.SETUP, homeMode(true, false, NavState.K_IDLE))
+        assertEquals(HomeMode.IDLE, homeMode(false, false, NavState.K_NAVIGATING))
+        assertEquals(HomeMode.IDLE, homeMode(true, true, NavState.K_IDLE))
+        assertEquals(HomeMode.NAVIGATING, homeMode(false, true, NavState.K_NAVIGATING))
+        assertEquals(HomeMode.REROUTING, homeMode(true, true, NavState.K_REROUTING))
+        assertEquals(HomeMode.ARRIVED, homeMode(false, true, NavState.K_ARRIVED))
+    }
+
+    @Test
+    fun dockModePriority() {
+        assertEquals(DockMode.DEMO, dockMode(true, true, true))
+        assertEquals(DockMode.RUNNING, dockMode(true, true, false))
+        assertEquals(DockMode.SETUP, dockMode(true, false, false))
+        assertEquals(DockMode.IDLE, dockMode(false, false, false))
+    }
+
+    @Test
+    fun setupStepsLeftCountsPending() {
+        assertEquals(2, setupStepsLeft(true, true, false, false))
+        assertEquals(0, setupStepsLeft(true, true, true, true))
+    }
+
+    @Test
+    fun maskTokenHidesAllButLastFour() {
+        assertEquals("\u2022\u2022\u2022\u2022 7F2A", maskToken("MOTO7F2A"))
+        assertEquals("\u2022\u2022\u2022", maskToken("abc"))
+        assertEquals("\u2022\u2022\u2022\u2022", maskToken("abcd"))
+    }
+
+    @Test
+    fun quickSlotsAlwaysThreeInOrder() {
+        val home = QuickPlace("h", "Nhà", "a", null, null, PlaceKind.HOME)
+        val other = QuickPlace("o", "Gym", "b", null, null, PlaceKind.OTHER)
+        val slots = quickSlots(listOf(other, home))
+        assertEquals(listOf(PlaceKind.HOME, PlaceKind.WORK, PlaceKind.OTHER), slots.map { it.kind })
+        assertEquals(home, slots[0].place)
+        assertEquals(null, slots[1].place)
+        assertEquals(other, slots[2].place)
+        assertEquals(3, quickSlots(emptyList()).size)
     }
 }

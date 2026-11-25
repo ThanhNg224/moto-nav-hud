@@ -31,4 +31,9 @@
     <string name="svc_tile_auto_paused">Tự bật đang tạm dừng</string>
     <string name="svc_notif_arrived">Đã đến nơi</string>
     <string name="svc_tile_arrived">Đã đến nơi</string>
+    <string name="svc_notif_open_maps">Về Maps</string>
+    <string name="svc_hud_start_failed">Chưa bật được HUD, hãy mở MotoNav và bấm Bắt đầu</string>
+    <string name="svc_maps_missing">Chưa cài Google Maps</string>
+    <string name="svc_shortcut_open_maps_short">Mở Maps và bắt đầu</string>
+    <string name="svc_shortcut_open_maps_long">Mở Google Maps và bật HUD đồng hồ</string>
 </resources>

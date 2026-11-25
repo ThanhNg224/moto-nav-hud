@@ -1,11 +1,11 @@
 # Moto Nav HUD - watch-app (Xiaomi Watch S5, Vela QuickApp)
 
-HUD chỉ đường cho xe máy trên đồng hồ tròn 480x480. Nhận dữ liệu từ điện thoại theo `docs/protocol.md` (v1.1), package `dev.motonavhud.app`.
+HUD chỉ đường cho xe máy trên đồng hồ tròn 480x480. Nhận dữ liệu từ điện thoại theo `docs/protocol.md` (v1.4), package `dev.motonavhud.app`.
 
 ## Cấu trúc
 - `src/manifest.json`: features `system.router`, `system.brightness`, `system.vibrator`, `system.interconnect`, `system.bluetooth.ble` (tên feature BLE đúng theo docs là `system.bluetooth.ble`, không phải `system.bluetooth`).
 - `src/common/hud-logic.js`: logic thuần (parse/validate, z/q, staleness, `k` ưu tiên, rung theo bước `i`, định dạng khoảng cách, mapping mũi tên, demo). Không import framework.
-- `src/common/config.js`: `FOLD_DIACRITICS` (mặc định false), `STALE_MS` 3000, `MAX_SOURCE_AGE_MS` 10000, ngưỡng rung 200/50 m, `PAIR_TOKEN`, MTU 185, backoff BLE, `BLE_PINNED_ADDRESS`.
+- `src/common/config.js`: `FOLD_DIACRITICS` (mặc định false), `STALE_MS` 3000, `MAX_SOURCE_AGE_MS` 10000, `NAV_LOST_SOURCE_AGE_MS` 65000, ngưỡng rung 200/50 m, `PAIR_TOKEN`, MTU 185, backoff BLE, `BLE_PINNED_ADDRESS`.
 - `src/common/transport-interconnect.js` (kênh A) và `transport-ble.js` (kênh C): cùng giao diện `create({onMessage, onStatus}) -> {start, stop}`. Chạy song song, tin hợp lệ đến trước thắng (cùng bộ lọc z/q).
 - `src/pages/index/index.ux`: màn hình HUD. `src/common/arrows/m00..m13.png`: mũi tên trắng 160x160 (m00 không dùng để hiển thị).
 - `tools/gen_arrows.py`: sinh PNG bằng stdlib. `test/`: unit test `node --test`.
@@ -20,18 +20,20 @@ python3 tools/gen_arrows.py            # chỉ khi sửa mũi tên
 npx aiot build   && cp dist/*.rpk out/ # debug
 npx aiot release && cp dist/*.rpk out/ # release (mỗi lệnh xóa dist/)
 ```
-Kết quả: `out/dev.motonavhud.app.{debug,release}.0.1.0.rpk` (~30 KB / ~27 KB).
+Kết quả: `out/dev.motonavhud.app.{debug,release}.0.4.2.rpk` (~30 KB / ~27 KB).
 
 ## Chế độ DEMO
 Ở màn "Chờ dữ liệu" chạm màn hình: chạy vòng qua các maneuver mỗi 2 s với khoảng cách giả (qua cùng đường parse/accept/rung như tin thật). Chạm lần nữa để dừng. Tin thật đến sẽ tự tắt demo.
 
-## Hành vi chính (protocol v1.2)
+## Hành vi chính (protocol v1.4)
 - Tin chỉ được nhận khi: `v=1`, `p` == `PAIR_TOKEN` (config.js, phải trùng phone-app), miền giá trị hợp lệ (`q>=1`, `a>=0`, `d>=-1`, `x>=0`, số nguyên an toàn), UTF-8 đúng. Kiểm tra xong mới đụng trạng thái, nên tin xấu không bao giờ xóa hướng dẫn đang có.
 - `q` phải lớn hơn `q` đã nhận cùng `z` (trùng không làm mới timer). `z` mới reset q/rung; vài `z` đã thay thế bị nhớ và bỏ tin.
-- "MẤT DỮ LIỆU" khi >3000 ms không có tin, hoặc tuổi hiệu dụng `a + (now - lúc nhận)` > 10000, hoặc đồng hồ lùi (cho tới khi có tin mới). Rung 1 lần mỗi đợt mất (chỉ khi tin cuối là `k=1`).
+- "MẤT DỮ LIỆU" khi >3000 ms không có tin, hoặc đồng hồ lùi (cho tới khi có tin mới), hoặc tuổi hiệu dụng `a + (now - lúc nhận)` vượt ngưỡng theo `k`: `k=1` > 65000 (`NAV_LOST_SOURCE_AGE_MS`); `k=2`/`k=3` > 10000 (`MAX_SOURCE_AGE_MS`).
+- `k=1` với tuổi 10000–65000 là "cũ" (im lặng): giữ mũi tên, khoảng cách và tên đường, hiện dấu mờ "cũ Ns" (EN "old Ns") cạnh khoảng cách; không banner, không rung mất dữ liệu, không rung tiệm cận, không đổi màu tiếp cận/vòng cung. Tin mới đưa về tươi ngay.
+- Rung mất dữ liệu 1 lần mỗi đợt mất (chỉ khi tin cuối là `k=1`).
 - Kênh ngắt (BLE ngắt/im lặng, interconnect đóng/lỗi): xóa hướng dẫn ngay (hiện MẤT DỮ LIỆU), giữ z/q riêng để tin trùng không khôi phục, bỏ nhãn LIVE.
 - `k=0` chờ, `k=2` "Đang tính lại", `k=3` "Đã đến": xóa mũi tên ngay.
-- Rung (`common/haptics.js`, `vibrator.start` + `vibrator.stop(id)`; lỗi start thì fallback `vibrate`): chỉ khi `k=1`, `m!=0`, `d>=0`; mỗi mức một lần cho mỗi bước `i`; `d<=50` 3 xung dài, `d<=200` 2 xung ngắn. Hủy ngay khi idle/tính lại/đến/m=0/bước mới ngoài vùng cảnh báo/mất kênh/rung khẩn hơn thay thế.
+- Rung (`common/haptics.js`, `vibrator.start` + `vibrator.stop(id)`; lỗi start thì fallback `vibrate`): chỉ khi `k=1`, `m!=0`, `d>=0`, nguồn tươi (không rung khi "cũ"); mỗi mức một lần cho mỗi bước `i`; `d<=50` 3 xung dài, `d<=200` 2 xung ngắn. Hủy ngay khi idle/tính lại/đến/m=0/bước mới ngoài vùng cảnh báo/mất kênh/rung khẩn hơn thay thế.
 - Demo tách trạng thái với tin thật: heartbeat `k=0` không làm gián đoạn demo; tin thật `k!=0` tự dừng demo. Chạm để dừng.
 - Dòng trạng thái: `LIVE <trạng thái kênh đang sống>` hoặc trạng thái cả hai kênh (A = interconnect, C = BLE) + lỗi sáng màn hình nếu có. `setKeepScreenOn(true)` xử lý `fail`, và tắt khi ẩn/hủy trang.
 - BLE: scan chỉ theo service UUID đầy đủ (mọi nhánh, kể cả ghim `BLE_PINNED_ADDRESS`, được lọc khi nhận kết quả), connect, và chỉ khi nhận trạng thái CONNECTED mới gửi MTU 185 -> getServices -> subscribe notify (callback `connect` chỉ là xác nhận gửi lệnh). Callback MTU không mang giá trị đàm phán nên HUD không tự khẳng định MTU; "sẵn sàng" = tin hợp lệ đầu tiên. Không có tin trong 8 s sau subscribe: "Không có dữ liệu BLE (MTU?)" và nối lại (backoff 1/2/4/8/15 s, chỉ reset sau tin hợp lệ); im lặng 8 s sau đó cũng nối lại. Mọi callback gắn với generation, bị bỏ khi attempt đã đóng; generation bị vô hiệu hóa trước khi giải phóng scanner/gatt.

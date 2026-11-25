@@ -67,8 +67,8 @@ class ThrottleTest {
 
     @Test fun staleSourceSendsIdleNeverStaleK1() {
         th.offer(nav); th.poll()
-        now += 15_000
-        assertEquals(1, th.poll()!!.state.k) // đúng ngưỡng 15 s vẫn chưa quá
+        now += 75_000
+        assertEquals(1, th.poll()!!.state.k) // đúng ngưỡng 75 s vẫn chưa quá
         now += 1_000
         val e = th.poll()!!
         assertEquals(0, e.state.k); assertEquals(0, e.render(now).a)
@@ -76,9 +76,30 @@ class ThrottleTest {
         assertEquals(0, th.poll()!!.state.k)
     }
 
+    @Test fun k1SurvivesPastFifteenSecondsWithoutRepost() {
+        th.offer(nav); th.poll()
+        now += 15_000
+        assertEquals(1, th.poll()!!.state.k) // Maps im lặng trên đường thẳng: vẫn k=1 tới 75 s
+    }
+
+    @Test fun arrivedExpiresAtFifteenSeconds() {
+        th.offer(nav.copy(k = 3)); th.poll()
+        now += 15_000
+        assertEquals(3, th.poll()!!.state.k) // đúng ngưỡng 15 s vẫn chưa quá
+        now += 1_000
+        val e = th.poll()!!
+        assertEquals(0, e.state.k); assertEquals(0, e.render(now).a)
+    }
+
     @Test fun staleReroutingStaysK2() {
         th.offer(nav.copy(k = 2)); th.poll()
         now += 20_000
+        assertEquals(2, th.poll()!!.state.k)
+    }
+
+    @Test fun reroutingNeverExpiresViaPoll() {
+        th.offer(nav.copy(k = 2)); th.poll()
+        now += 600_000
         assertEquals(2, th.poll()!!.state.k)
     }
 
@@ -111,9 +132,26 @@ class ThrottleTest {
         val e = th.poll()!!
         assertEquals(0, e.render(now).a)
         assertEquals(5000, e.render(now + 5000).a) // snapshot xếp hàng: tuổi tăng theo thời gian thật
-        assertEquals(1, e.render(now + 15_000).state.k)
-        val late = e.render(now + 15_001)
+        assertEquals(1, e.render(now + 75_000).state.k)
+        val late = e.render(now + 75_001)
         assertEquals(0, late.state.k); assertEquals(0, late.a) // hết hạn lúc gửi thật
+    }
+
+    @Test fun k1ExpiryBoundaryAtRenderTime() {
+        th.offer(nav)
+        val e = th.poll()!!
+        assertEquals(1, e.render(now + 14_999).state.k)
+        assertEquals(1, e.render(now + 74_999).state.k)
+        assertEquals(1, e.render(now + 75_000).state.k)
+        val expired = e.render(now + 75_001)
+        assertEquals(0, expired.state.k); assertEquals(0, expired.a)
+    }
+
+    @Test fun queuedK1EmissionGoesIdleOncePastNavStale() {
+        th.offer(nav)
+        val queued = th.poll()!! // xếp hàng, đọc muộn
+        assertEquals(1, queued.render(now + 74_000).state.k)
+        assertEquals(0, queued.render(now + 80_000).state.k)
     }
 
     @Test fun rerouteSnapshotDoesNotExpireAtRender() {
@@ -125,8 +163,10 @@ class ThrottleTest {
     @Test fun offerWithOlderSourceTimeKeepsRealAge() {
         th.offer(nav, atMs = now - 4000) // seed từ postTime
         assertEquals(4000, th.poll()!!.render(now).a)
-        now += 12_000
-        assertEquals(0, th.poll()!!.state.k) // 16 s kể từ nguồn thật -> hết hạn
+        now += 68_000
+        assertEquals(1, th.poll()!!.state.k) // 72 s kể từ nguồn thật (-3000): còn trong 75 s
+        now += 4_000
+        assertEquals(0, th.poll()!!.state.k) // 76 s kể từ nguồn thật -> hết hạn
     }
 
     @Test fun reofferingRealIdleAfterSimulatedStateForcesIdle() {

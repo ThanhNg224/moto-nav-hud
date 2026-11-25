@@ -39,13 +39,18 @@ test('utf8 hỏng bị trả null', () => {
   assert.strictEqual(h.utf8Decode(new Uint8Array([0xff]).buffer), null)
 })
 
-test('tuổi hiệu dụng: a + thời gian trôi qua > 10000 => stale', () => {
+test('tuổi hiệu dụng k=1: > 10000 yên lặng (giữ nav), > 65000 => stale', () => {
   const st = h.createState()
   h.accept(st, msg({ a: 9900 }), 1000)
   assert.strictEqual(h.view(st, 1000).mode, 'nav')
-  assert.strictEqual(h.view(st, 1100).mode, 'nav')
-  assert.strictEqual(h.view(st, 1101).mode, 'stale')
-  assert.strictEqual(h.view(st, 1101).arrow, null)
+  assert.strictEqual(h.view(st, 1100).quiet, false)
+  const q = h.view(st, 1101)
+  assert.strictEqual(q.mode, 'nav'); assert.strictEqual(q.quiet, true); assert.strictEqual(q.banner, '')
+  const s2 = h.createState()
+  h.accept(s2, msg({ a: 64000 }), 1000)
+  assert.strictEqual(h.view(s2, 2000).mode, 'nav')
+  assert.strictEqual(h.view(s2, 2001).mode, 'stale')
+  assert.strictEqual(h.view(s2, 2001).arrow, null)
 })
 
 test('đồng hồ lùi => stale cho tới khi có tin mới, kể cả khi đồng hồ tiến lại', () => {
